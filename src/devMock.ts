@@ -1,8 +1,16 @@
 import type { Assignments, FixedItem, Income, ItemSet } from "./schedule";
-import { monthKey } from "./schedule";
 import { INCOME_START } from "./format";
 import { SAMPLE } from "./sampleData";
 import { isLedgerSnapshot, type LedgerSnapshot } from "./snapshot";
+import {
+  migrateSnapshot,
+  monthKeysThrough,
+  pruneOrphanItems,
+  reapplySetMonths,
+  scrubAssignments,
+  setNameTaken,
+  toggleIdsInMonth,
+} from "./ledgerData";
 
 export function installDevMock() {
   if (window.ledger) return;
@@ -22,43 +30,13 @@ export function installDevMock() {
 
   let income: Income = { base: 3_400_000, months: { "2026-12": 4_200_000 } };
   let sets: ItemSet[] = [];
+  let assignments: Assignments = Object.fromEntries(
+    monthKeysThrough(new Date(), INCOME_START).map((k) => [k, items.map((it) => it.id)])
+  );
 
-  const seedKeys = () => {
-    const keys: string[] = [];
-    const now = new Date();
-    let y = INCOME_START.year;
-    let m = INCOME_START.month;
-    while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) {
-      keys.push(monthKey(y, m));
-      m += 1;
-      if (m > 12) {
-        m = 1;
-        y += 1;
-      }
-      if (keys.length > 240) break;
-    }
-    return keys;
-  };
-
-  let assignments: Assignments = Object.fromEntries(seedKeys().map((k) => [k, items.map((it) => it.id)]));
+  const state = () => ({ items, sets, assignments });
   const cloneAssign = () => Object.fromEntries(Object.entries(assignments).map(([k, v]) => [k, [...v]]));
   const cloneSets = () => sets.map((s) => ({ ...s, itemIds: [...s.itemIds] }));
-
-  function scrubAssign(id: string) {
-    for (const key of Object.keys(assignments)) {
-      assignments[key] = assignments[key].filter((x) => x !== id);
-      if (!assignments[key].length) delete assignments[key];
-    }
-  }
-
-  function pruneOrphans() {
-    if (!sets.length) return;
-    const used = new Set(sets.flatMap((s) => s.itemIds));
-    const drop = items.filter((it) => !used.has(it.id)).map((it) => it.id);
-    if (!drop.length) return;
-    items = items.filter((it) => used.has(it.id));
-    for (const id of drop) scrubAssign(id);
-  }
 
   window.ledger = {
     getAll: async () => [...items],
@@ -71,7 +49,7 @@ export function installDevMock() {
         active: true,
         note: "",
         category: "기타",
-        cycle: "monthly",
+        cycle: "monthly" as const,
         ...prev,
         ...draft,
       } as FixedItem;
@@ -81,50 +59,27 @@ export function installDevMock() {
     },
     remove: async (id) => {
       items = items.filter((x) => x.id !== id);
-      for (const key of Object.keys(assignments)) {
-        assignments[key] = assignments[key].filter((x) => x !== id);
-        if (!assignments[key].length) delete assignments[key];
-      }
+      scrubAssignments(assignments, id);
       sets = sets.map((s) => ({ ...s, itemIds: s.itemIds.filter((x) => x !== id) }));
       return true;
     },
     getAssignments: async () => cloneAssign(),
-    toggleAssign: async (itemId, key) => {
-      const set = new Set(assignments[key] ?? []);
-      if (set.has(itemId)) set.delete(itemId);
-      else set.add(itemId);
-      if (set.size) assignments[key] = [...set];
-      else delete assignments[key];
-      return cloneAssign();
-    },
-    assignToMonths: async (itemId, monthKeys) => {
-      for (const key of monthKeys) {
-        const set = new Set(assignments[key] ?? []);
-        set.add(itemId);
-        assignments[key] = [...set];
-      }
-      return cloneAssign();
-    },
     toggleSetMonth: async (setId, key) => {
       const found = sets.find((s) => s.id === setId);
       if (!found) throw new Error("set not found");
       const ids = found.itemIds.filter((id) => items.some((it) => it.id === id));
-      const current = new Set(assignments[key] ?? []);
-      const allOn = ids.every((id) => current.has(id));
-      if (allOn) ids.forEach((id) => current.delete(id));
-      else ids.forEach((id) => current.add(id));
-      if (current.size) assignments[key] = [...current];
-      else delete assignments[key];
+      if (!ids.length) throw new Error("empty set");
+      toggleIdsInMonth(assignments, key, ids);
       return cloneAssign();
     },
     getSets: async () => cloneSets(),
     saveSet: async (name, itemIds) => {
       const label = name.trim();
       if (!label) throw new Error("name required");
+      if (setNameTaken(sets, label)) throw new Error("duplicate name");
       const known = new Set(items.map((it) => it.id));
       const ids = [...new Set((itemIds ?? []).filter((id) => known.has(id)))];
       if (!ids.length) throw new Error("no items");
-      if (sets.some((s) => s.name.trim().toLowerCase() === label.toLowerCase())) throw new Error("duplicate name");
       sets = [
         ...sets,
         { id: `set-${Date.now()}`, name: label, itemIds: ids, createdAt: new Date().toISOString() },
@@ -133,7 +88,9 @@ export function installDevMock() {
     },
     removeSet: async (id) => {
       sets = sets.filter((s) => s.id !== id);
-      pruneOrphans();
+      const data = state();
+      pruneOrphanItems(data);
+      items = data.items;
       return cloneSets();
     },
     updateSet: async (id, patch) => {
@@ -143,39 +100,23 @@ export function installDevMock() {
       if (patch.name !== undefined) {
         const label = patch.name.trim();
         if (!label) throw new Error("name required");
-        if (sets.some((s) => s.id !== id && s.name.trim().toLowerCase() === label.toLowerCase())) {
-          throw new Error("duplicate name");
-        }
+        if (setNameTaken(sets, label, id)) throw new Error("duplicate name");
         next.name = label;
       }
-      if (Array.isArray(patch.itemIds) || patch.refreshItems) {
+      if (Array.isArray(patch.itemIds)) {
+        const known = new Set(items.map((it) => it.id));
         const oldIds = [...next.itemIds];
-        if (Array.isArray(patch.itemIds)) {
-          const known = new Set(items.map((it) => it.id));
-          next.itemIds = [...new Set(patch.itemIds.filter((x) => known.has(x)))];
-        } else {
-          next.itemIds = items.map((it) => it.id);
-        }
+        next.itemIds = [...new Set(patch.itemIds.filter((x) => known.has(x)))];
         if (!next.itemIds.length) throw new Error("no items");
         sets = sets.map((s, i) => (i === idx ? next : s));
-
-        const applied = Object.entries(assignments)
-          .filter(([, list]) => oldIds.length > 0 && oldIds.every((id) => list.includes(id)))
-          .map(([key]) => key);
-        const removed = oldIds.filter((id) => !next.itemIds.includes(id));
-        for (const key of applied) {
-          const bucket = new Set(assignments[key] ?? []);
-          for (const itemId of next.itemIds) bucket.add(itemId);
-          for (const itemId of removed) {
-            if (!sets.some((s) => s.itemIds.includes(itemId))) bucket.delete(itemId);
-          }
-          if (bucket.size) assignments[key] = [...bucket];
-          else delete assignments[key];
-        }
+        const data = state();
+        reapplySetMonths(data, oldIds, next.itemIds);
       } else {
         sets = sets.map((s, i) => (i === idx ? next : s));
       }
-      pruneOrphans();
+      const data = state();
+      pruneOrphanItems(data);
+      items = data.items;
       return cloneSets();
     },
     getIncome: async () => income,
@@ -209,10 +150,11 @@ export function installDevMock() {
       }
       const raw: unknown = JSON.parse(await file.text());
       if (!isLedgerSnapshot(raw)) throw new Error("invalid backup");
-      items = raw.items;
-      assignments = raw.assignments && typeof raw.assignments === "object" ? raw.assignments : {};
-      sets = Array.isArray(raw.sets) ? raw.sets : [];
-      income = raw.income ?? { base: 0, months: {} };
+      const data = migrateSnapshot(raw);
+      items = data.items;
+      assignments = data.assignments;
+      sets = data.sets;
+      income = data.income;
       return { ok: true };
     },
   };

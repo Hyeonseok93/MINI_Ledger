@@ -7,7 +7,7 @@ type Args = {
   onCancel: () => void;
   onRemove: (id: string) => Promise<void> | void;
   onSaveSet: (name: string, itemIds: string[]) => Promise<void>;
-  onUpdateSet: (id: string, patch: { name?: string; itemIds?: string[]; refreshItems?: boolean }) => Promise<void>;
+  onUpdateSet: (id: string, patch: { name?: string; itemIds?: string[] }) => Promise<void>;
   onSubmit: (e: FormEvent) => Promise<FixedItem | undefined> | void;
 };
 

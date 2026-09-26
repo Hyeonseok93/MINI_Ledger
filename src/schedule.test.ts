@@ -199,14 +199,9 @@ describe("analyze", () => {
     expect(a.daysInMonth).toBe(30);
     expect(a.count).toBe(2);
     expect(a.monthlyTotal).toBe(130_000);
-    expect(a.yearlyTotal).toBe(1_560_000);
     expect(a.paidThisMonth).toBe(100_000);
     expect(a.remainingThisMonth).toBe(30_000);
-    expect(a.byCategory).toEqual([
-      { category: "주거", amount: 100_000 },
-      { category: "구독", amount: 30_000 },
-    ]);
-    expect(a.upcoming.map((o) => o.item.id)).toEqual(["b"]);
+    expect(a.occurrences.map((o) => o.item.id).sort()).toEqual(["a", "b"]);
   });
 
   it("treats past months as fully paid and future as fully remaining", () => {

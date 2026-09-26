@@ -740,14 +740,6 @@
   line-height: 1.25;
 }
 
-.empty-sub {
-  margin: 14px auto 0;
-  max-width: 28em;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--muted);
-}
-
 .empty p {
   margin: 0;
 }

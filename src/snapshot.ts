@@ -12,5 +12,11 @@ export type LedgerSnapshot = {
 export function isLedgerSnapshot(raw: unknown): raw is LedgerSnapshot {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
   const o = raw as Record<string, unknown>;
-  return Array.isArray(o.items);
+  if (!Array.isArray(o.items)) return false;
+  if (o.assignments !== undefined && (typeof o.assignments !== "object" || Array.isArray(o.assignments))) {
+    return false;
+  }
+  if (o.sets !== undefined && !Array.isArray(o.sets)) return false;
+  if (o.income !== undefined && (typeof o.income !== "object" || Array.isArray(o.income))) return false;
+  return true;
 }

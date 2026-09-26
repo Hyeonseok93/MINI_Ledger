@@ -52,8 +52,6 @@ function registerIpc() {
   ipcMain.handle("store:upsert", (_e, item) => store.upsert(item));
   ipcMain.handle("store:remove", (_e, id) => store.remove(id));
   ipcMain.handle("assign:get", () => store.getAssignments());
-  ipcMain.handle("assign:toggle", (_e, itemId, monthKey) => store.toggleAssign(itemId, monthKey));
-  ipcMain.handle("assign:toMonths", (_e, itemId, monthKeys) => store.assignItemToMonths(itemId, monthKeys));
   ipcMain.handle("assign:toggleSetMonth", (_e, setId, monthKey) => store.toggleSetMonth(setId, monthKey));
   ipcMain.handle("sets:get", () => store.getSets());
   ipcMain.handle("sets:save", (_e, name, itemIds) => store.saveSet(name, itemIds));
@@ -69,11 +67,12 @@ function registerIpc() {
   ipcMain.handle("data:export", async (e) => {
     const w = win(e);
     const stamp = new Date().toISOString().slice(0, 10);
-    const result = await dialog.showSaveDialog(w ?? undefined, {
+    const opts = {
       title: "Export ledger JSON",
       defaultPath: `ledger-${stamp}.json`,
       filters: [{ name: "JSON", extensions: ["json"] }],
-    });
+    };
+    const result = w ? await dialog.showSaveDialog(w, opts) : await dialog.showSaveDialog(opts);
     if (result.canceled || !result.filePath) return { ok: false };
     fs.writeFileSync(result.filePath, JSON.stringify(store.exportSnapshot(), null, 2), "utf8");
     return { ok: true, path: result.filePath };
@@ -81,22 +80,24 @@ function registerIpc() {
 
   ipcMain.handle("data:import", async (e) => {
     const w = win(e);
-    const picked = await dialog.showOpenDialog(w ?? undefined, {
+    const openOpts = {
       title: "Import ledger JSON",
       filters: [{ name: "JSON", extensions: ["json"] }],
-      properties: ["openFile"],
-    });
+      properties: ["openFile" as const],
+    };
+    const picked = w ? await dialog.showOpenDialog(w, openOpts) : await dialog.showOpenDialog(openOpts);
     if (picked.canceled || !picked.filePaths[0]) return { ok: false };
 
-    const confirm = await dialog.showMessageBox(w ?? undefined, {
-      type: "warning",
+    const msgOpts = {
+      type: "warning" as const,
       buttons: ["취소", "가져오기"],
       defaultId: 1,
       cancelId: 0,
       title: "JSON 가져오기",
       message: "현재 장부를 선택한 파일로 바꿀까요?",
       detail: "항목·세트·월 적용·수입이 모두 덮어씌워집니다.",
-    });
+    };
+    const confirm = w ? await dialog.showMessageBox(w, msgOpts) : await dialog.showMessageBox(msgOpts);
     if (confirm.response !== 1) return { ok: false };
 
     let raw: unknown;

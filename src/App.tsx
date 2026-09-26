@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { type Assignments, type FixedItem, type Income, type ItemSet } from "./schedule";
-import { WEEKDAYS_EN } from "./format";
+import { WEEKDAYS_EN, parseWon } from "./format";
 import { emptyForm, type Form } from "./form";
 import { Overview } from "./Overview";
 import { Ledger } from "./LedgerPage";
@@ -53,7 +53,7 @@ export default function App() {
       const row = await window.ledger.upsert({
         id: editingId ?? undefined,
         name: form.name,
-        amount: Number(form.amount.replace(/,/g, "")),
+        amount: parseWon(form.amount),
         cycle: form.cycle,
         day: Number(form.day),
         weekday: Number(form.weekday),
@@ -123,7 +123,7 @@ export default function App() {
     }
   }
 
-  async function updateSet(id: string, patch: { name?: string; itemIds?: string[]; refreshItems?: boolean }) {
+  async function updateSet(id: string, patch: { name?: string; itemIds?: string[] }) {
     try {
       setSets(await window.ledger.updateSet(id, patch));
       await refresh();

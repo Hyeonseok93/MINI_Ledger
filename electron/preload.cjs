@@ -7,8 +7,6 @@ import_electron.contextBridge.exposeInMainWorld("ledger", {
   upsert: (item) => import_electron.ipcRenderer.invoke("store:upsert", item),
   remove: (id) => import_electron.ipcRenderer.invoke("store:remove", id),
   getAssignments: () => import_electron.ipcRenderer.invoke("assign:get"),
-  toggleAssign: (itemId, monthKey) => import_electron.ipcRenderer.invoke("assign:toggle", itemId, monthKey),
-  assignToMonths: (itemId, monthKeys) => import_electron.ipcRenderer.invoke("assign:toMonths", itemId, monthKeys),
   toggleSetMonth: (setId, monthKey) => import_electron.ipcRenderer.invoke("assign:toggleSetMonth", setId, monthKey),
   getSets: () => import_electron.ipcRenderer.invoke("sets:get"),
   saveSet: (name, itemIds) => import_electron.ipcRenderer.invoke("sets:save", name, itemIds),

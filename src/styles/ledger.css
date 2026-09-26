@@ -37,11 +37,6 @@
   letter-spacing: -0.02em;
 }
 
-.ledger-hint {
-  color: var(--muted);
-  font-weight: 400;
-}
-
 .entry {
   display: grid;
   grid-template-columns: 1.5fr 1fr 0.8fr minmax(190px, 1.5fr) 1fr;
@@ -289,10 +284,10 @@
 
 .sheet-row {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.6fr) minmax(0, 1.1fr) 88px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 1.1fr) 88px;
   grid-template-areas:
-    "when item cat cycle amt ops"
-    "dday note note note sub ops";
+    "item cat cycle amt ops"
+    "note note note sub ops";
   column-gap: 24px;
   row-gap: 5px;
   align-items: baseline;
@@ -301,15 +296,10 @@
   transition: background 0.12s ease;
 }
 
-.sheet-ledger .sheet-row {
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 1.1fr) 88px;
-  grid-template-areas:
-    "item cat cycle amt ops"
-    "note note note sub ops";
-}
-
-.sheet-ledger .sheet-head {
+.sheet-head {
   grid-template-areas: "item cat cycle amt ops";
+  padding: 18px 0 12px;
+  border-bottom-color: var(--rule-2);
 }
 
 .sheet-row > span {
@@ -327,12 +317,6 @@
   background: rgba(148, 239, 195, 0.05);
 }
 
-.sheet-head {
-  grid-template-areas: "when item cat cycle amt ops";
-  padding: 18px 0 12px;
-  border-bottom-color: var(--rule-2);
-}
-
 .sheet-head > span {
   font-family: var(--mono);
   font-size: 10.5px;
@@ -340,22 +324,6 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted) !important;
-}
-
-.s-when {
-  grid-area: when;
-  font-family: var(--mono);
-  font-size: 13.5px;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
-
-.s-when em {
-  margin-left: 8px;
-  font-family: var(--sans);
-  font-style: normal;
-  font-size: 11.5px;
-  color: var(--muted);
 }
 
 .s-item {
@@ -379,22 +347,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-.s-dday,
 .s-note,
 .s-sub {
   font-size: 11.5px;
   line-height: 16px;
   color: var(--muted);
-}
-
-.s-dday {
-  grid-area: dday;
-  font-family: var(--mono);
-  letter-spacing: 0.04em;
-}
-
-.s-dday.now {
-  color: var(--signal);
 }
 
 .s-note {
@@ -441,25 +398,6 @@
   padding: 36px 0;
   color: var(--muted);
   font-size: 13px;
-}
-
-.catalog-head,
-.catalog-row {
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.9fr) 72px 100px minmax(0, 0.9fr) 72px 88px;
-  grid-template-areas: "item cat cycle when amt assign ops";
-  cursor: pointer;
-}
-
-.s-assign {
-  grid-area: assign;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--muted);
-  text-align: right;
-}
-
-.catalog-row.selected .s-assign {
-  color: var(--accent);
 }
 
 .sort-h {
@@ -518,8 +456,7 @@
   gap: 6px;
 }
 
-.set-save input,
-.set-edit-name input {
+.set-save input {
   width: 100%;
   height: 36px;
   padding: 0;
@@ -531,8 +468,7 @@
   outline: none;
 }
 
-.set-save input:focus,
-.set-edit-name input:focus {
+.set-save input:focus {
   border-bottom-color: var(--accent);
 }
 
@@ -641,10 +577,6 @@
   color: #ef9a9a;
 }
 
-.set-row.editing {
-  background: rgba(148, 239, 195, 0.04);
-}
-
 .set-empty {
   padding: 24px 0;
   color: var(--muted);
@@ -722,12 +654,6 @@
 
 .assign-cell:hover {
   background: var(--bg-2);
-}
-
-.assign-foot {
-  margin: 14px 0 0;
-  font-size: 12px;
-  color: var(--muted);
 }
 
 .assign-items {

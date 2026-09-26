@@ -38,7 +38,7 @@ type LedgerProps = {
   onRemove: (id: string) => Promise<void> | void;
   onSaveSet: (name: string, itemIds: string[]) => Promise<void>;
   onRemoveSet: (id: string) => Promise<void>;
-  onUpdateSet: (id: string, patch: { name?: string; itemIds?: string[]; refreshItems?: boolean }) => Promise<void>;
+  onUpdateSet: (id: string, patch: { name?: string; itemIds?: string[] }) => Promise<void>;
   onToggleSetMonth: (setId: string, monthKey: string) => Promise<void>;
 };
 

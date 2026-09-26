@@ -6,18 +6,18 @@ type FixedDraft = Partial<FixedItem> & {
   amount: number;
 };
 
+type SetPatch = { name?: string; itemIds?: string[] };
+
 type LedgerApi = {
   getAll: () => Promise<FixedItem[]>;
   upsert: (item: FixedDraft) => Promise<FixedItem>;
   remove: (id: string) => Promise<boolean>;
   getAssignments: () => Promise<Assignments>;
-  toggleAssign: (itemId: string, monthKey: string) => Promise<Assignments>;
-  assignToMonths: (itemId: string, monthKeys: string[]) => Promise<Assignments>;
   toggleSetMonth: (setId: string, monthKey: string) => Promise<Assignments>;
   getSets: () => Promise<ItemSet[]>;
   saveSet: (name: string, itemIds: string[]) => Promise<ItemSet[]>;
   removeSet: (id: string) => Promise<ItemSet[]>;
-  updateSet: (id: string, patch: { name?: string; itemIds?: string[]; refreshItems?: boolean }) => Promise<ItemSet[]>;
+  updateSet: (id: string, patch: SetPatch) => Promise<ItemSet[]>;
   getIncome: () => Promise<Income>;
   setIncome: (income: Income) => Promise<Income>;
   getPaths: () => Promise<{ userData: string; storeDir: string }>;
@@ -40,4 +40,4 @@ declare global {
   }
 }
 
-export type { LedgerSnapshot, FixedDraft, LedgerApi };
+export {};

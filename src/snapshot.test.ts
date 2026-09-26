@@ -19,4 +19,10 @@ describe("isLedgerSnapshot", () => {
     expect(isLedgerSnapshot(null)).toBe(false);
     expect(isLedgerSnapshot([])).toBe(false);
   });
+
+  it("rejects malformed assignments/sets/income", () => {
+    expect(isLedgerSnapshot({ items: [], assignments: [] })).toBe(false);
+    expect(isLedgerSnapshot({ items: [], sets: {} })).toBe(false);
+    expect(isLedgerSnapshot({ items: [], income: [] })).toBe(false);
+  });
 });

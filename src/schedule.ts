@@ -49,10 +49,6 @@ export function itemsForMonth(
   return items.filter((it) => it.active && ids.has(it.id));
 }
 
-export function assignedMonthCount(assignments: Assignments, itemId: string) {
-  return Object.values(assignments).filter((ids) => ids.includes(itemId)).length;
-}
-
 export const CYCLES: { value: Cycle; label: string }[] = [
   { value: "daily", label: "매일" },
   { value: "weekly", label: "매주" },
@@ -234,12 +230,9 @@ export type Analytics = {
   daysInMonth: number;
   count: number;
   monthlyTotal: number;
-  yearlyTotal: number;
   paidThisMonth: number;
   remainingThisMonth: number;
-  byCategory: { category: string; amount: number }[];
   occurrences: Occurrence[];
-  upcoming: Occurrence[];
 };
 
 /** `view` = any day in the month to analyze. `asOf` = real "today" for paid/remaining. */
@@ -262,26 +255,13 @@ export function analyze(
     occurrencesInMonth(item, year, month0).map((day) => ({ item, day }))
   );
 
-  const byCat = new Map<string, number>();
-  for (const it of monthItems) byCat.set(it.category, (byCat.get(it.category) ?? 0) + perMonth(it));
-
-  const upcoming = monthItems
-    .map((item) => ({ item, day: occurrencesInMonth(item, year, month0).find((d) => d >= Math.max(1, today)) }))
-    .filter((o): o is Occurrence => o.day !== undefined)
-    .sort((a, b) => a.day - b.day || b.item.amount - a.item.amount);
-
   return {
     today,
     daysInMonth: dim,
     count: monthItems.length,
     monthlyTotal: monthItems.reduce((s, it) => s + perMonth(it), 0),
-    yearlyTotal: monthItems.reduce((s, it) => s + perYear(it), 0),
     paidThisMonth: occurrences.filter((o) => o.day < today).reduce((s, o) => s + o.item.amount, 0),
     remainingThisMonth: occurrences.filter((o) => o.day >= today).reduce((s, o) => s + o.item.amount, 0),
-    byCategory: [...byCat]
-      .map(([category, amount]) => ({ category, amount }))
-      .sort((a, b) => b.amount - a.amount),
     occurrences,
-    upcoming,
   };
 }
