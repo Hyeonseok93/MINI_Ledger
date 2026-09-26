@@ -7,10 +7,9 @@ const BG = "#0a0c10";
 const MINT = "#94efc3";
 
 const PRESETS = {
-  regular: { t: 32, w: 108, xh: 150, asc: 222, gap: 34, rise: 54, D: 96, k: 0.8, out: "ledger-icon" },
-  bold: { t: 44, w: 122, xh: 180, asc: 262, gap: 34, rise: 58, D: 116, k: 0.72, out: "ledger-icon-bold" },
+  bold: { t: 44, w: 122, xh: 180, asc: 262, gap: 34, rise: 58, D: 116, k: 0.72, out: "ledger" },
 };
-const presetName = process.argv.find((a) => PRESETS[a]) || "regular";
+const presetName = process.argv.find((a) => PRESETS[a]) || "bold";
 const P = PRESETS[presetName];
 
 const t = P.t;

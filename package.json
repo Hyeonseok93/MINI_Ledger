@@ -21,14 +21,14 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "assets/ledger-icon-bold.png",
+      "assets/ledger.png",
       "package.json"
     ],
     "win": {
       "target": [
         "dir"
       ],
-      "icon": "assets/ledger-icon-bold.png"
+      "icon": "assets/ledger.png"
     }
   },
   "dependencies": {

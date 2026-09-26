@@ -141,6 +141,29 @@ export default function App() {
     }
   }
 
+  async function exportJson() {
+    try {
+      setError("");
+      await window.ledger.exportJson();
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
+  async function importJson() {
+    try {
+      setError("");
+      const result = await window.ledger.importJson();
+      if (result.ok) {
+        setEditingId(null);
+        setForm(emptyForm);
+        await refresh();
+      }
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
   return (
     <div className="shell">
       <aside className="rail">
@@ -152,6 +175,14 @@ export default function App() {
         <div className="rail-foot">
           <span className="mono-label">Store</span>
           <code title={storePath}>{storePath ? "%APPDATA%/ledger" : "—"}</code>
+          <div className="rail-data">
+            <button type="button" onClick={exportJson} title="장부 JSON 내보내기">
+              Export
+            </button>
+            <button type="button" onClick={importJson} title="장부 JSON 가져오기 (덮어쓰기)">
+              Import
+            </button>
+          </div>
           <span className="mono-label dim">v0.1</span>
         </div>
       </aside>

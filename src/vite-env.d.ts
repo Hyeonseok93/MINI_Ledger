@@ -20,6 +20,8 @@ type LedgerApi = {
   getIncome: () => Promise<Income>;
   setIncome: (income: Income) => Promise<Income>;
   getPaths: () => Promise<{ userData: string; storeDir: string }>;
+  exportJson: () => Promise<{ ok: boolean; path?: string }>;
+  importJson: () => Promise<{ ok: boolean; path?: string }>;
 };
 
 type WindowControlsApi = {

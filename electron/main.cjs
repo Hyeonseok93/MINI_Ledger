@@ -1,5 +1,6 @@
-const { app, BrowserWindow, Menu, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const store = require("./store.cjs");
 
 const isDev = !app.isPackaged;
@@ -13,7 +14,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: "#0a0c10",
     title: "Ledger",
-    icon: path.join(__dirname, "..", "assets", "ledger-icon-bold.png"),
+    icon: path.join(__dirname, "..", "assets", "ledger.png"),
     frame: false,
     show: false,
     webPreferences: {
@@ -44,6 +45,8 @@ function createWindow() {
 }
 
 function registerIpc() {
+  const win = (e) => BrowserWindow.fromWebContents(e.sender);
+
   ipcMain.handle("store:getAll", () => store.getAll());
   ipcMain.handle("store:upsert", (_e, item) => store.upsert(item));
   ipcMain.handle("store:remove", (_e, id) => store.remove(id));
@@ -62,7 +65,49 @@ function registerIpc() {
     storeDir: store.getStoreDir(),
   }));
 
-  const win = (e) => BrowserWindow.fromWebContents(e.sender);
+  ipcMain.handle("data:export", async (e) => {
+    const w = win(e);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const result = await dialog.showSaveDialog(w ?? undefined, {
+      title: "Export ledger JSON",
+      defaultPath: `ledger-${stamp}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: false };
+    fs.writeFileSync(result.filePath, JSON.stringify(store.exportSnapshot(), null, 2), "utf8");
+    return { ok: true, path: result.filePath };
+  });
+
+  ipcMain.handle("data:import", async (e) => {
+    const w = win(e);
+    const picked = await dialog.showOpenDialog(w ?? undefined, {
+      title: "Import ledger JSON",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+      properties: ["openFile"],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return { ok: false };
+
+    const confirm = await dialog.showMessageBox(w ?? undefined, {
+      type: "warning",
+      buttons: ["취소", "가져오기"],
+      defaultId: 1,
+      cancelId: 0,
+      title: "JSON 가져오기",
+      message: "현재 장부를 선택한 파일로 바꿀까요?",
+      detail: "항목·세트·월 적용·수입이 모두 덮어씌워집니다.",
+    });
+    if (confirm.response !== 1) return { ok: false };
+
+    let raw;
+    try {
+      raw = JSON.parse(fs.readFileSync(picked.filePaths[0], "utf8"));
+    } catch {
+      throw new Error("JSON 파일을 읽을 수 없습니다");
+    }
+    store.importSnapshot(raw);
+    return { ok: true, path: picked.filePaths[0] };
+  });
+
   ipcMain.on("window:minimize", (e) => win(e)?.minimize());
   ipcMain.on("window:toggleMaximize", (e) => {
     const w = win(e);

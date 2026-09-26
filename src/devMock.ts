@@ -183,5 +183,41 @@ export function installDevMock() {
       return income;
     },
     getPaths: async () => ({ userData: "", storeDir: "browser-mock" }),
+    exportJson: async () => {
+      const snap = { version: 3, items, assignments, sets, income };
+      const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ledger-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return { ok: true };
+    },
+    importJson: async () => {
+      const file = await new Promise<File | null>((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "application/json,.json";
+        input.onchange = () => resolve(input.files?.[0] ?? null);
+        input.click();
+      });
+      if (!file) return { ok: false };
+      if (!window.confirm("현재 장부를 선택한 파일로 바꿀까요?\n항목·세트·월 적용·수입이 모두 덮어씌워집니다.")) {
+        return { ok: false };
+      }
+      const raw = JSON.parse(await file.text()) as {
+        items?: FixedItem[];
+        assignments?: Assignments;
+        sets?: ItemSet[];
+        income?: Income;
+      };
+      if (!raw || !Array.isArray(raw.items)) throw new Error("invalid backup");
+      items = raw.items;
+      assignments = raw.assignments && typeof raw.assignments === "object" ? raw.assignments : {};
+      sets = Array.isArray(raw.sets) ? raw.sets : [];
+      income = raw.income ?? { base: 0, months: {} };
+      return { ok: true };
+    },
   };
 }

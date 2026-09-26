@@ -404,6 +404,18 @@ function toggleSetMonth(setId, monthKey) {
   return data.assignments;
 }
 
+function exportSnapshot() {
+  return read();
+}
+
+function importSnapshot(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("invalid backup");
+  const data = migrate(structuredClone(raw));
+  if (!Array.isArray(data.items)) throw new Error("invalid backup");
+  write(data);
+  return true;
+}
+
 module.exports = {
   init,
   getStoreDir,
@@ -420,4 +432,6 @@ module.exports = {
   removeSet,
   updateSet,
   toggleSetMonth,
+  exportSnapshot,
+  importSnapshot,
 };

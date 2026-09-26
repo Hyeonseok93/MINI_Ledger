@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import ledgerIcon from "../assets/ledger-icon-bold.png";
+import ledgerIcon from "../assets/ledger.png";
 
 export default function TitleBar() {
   const [maximized, setMaximized] = useState(false);

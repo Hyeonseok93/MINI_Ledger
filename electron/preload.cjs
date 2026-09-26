@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("ledger", {
   getIncome: () => ipcRenderer.invoke("income:get"),
   setIncome: (income) => ipcRenderer.invoke("income:set", income),
   getPaths: () => ipcRenderer.invoke("app:getPaths"),
+  exportJson: () => ipcRenderer.invoke("data:export"),
+  importJson: () => ipcRenderer.invoke("data:import"),
 });
 
 contextBridge.exposeInMainWorld("windowControls", {
