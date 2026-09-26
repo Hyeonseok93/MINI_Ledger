@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld("ledger", {
   assignToMonths: (itemId, monthKeys) => ipcRenderer.invoke("assign:toMonths", itemId, monthKeys),
   toggleSetMonth: (setId, monthKey) => ipcRenderer.invoke("assign:toggleSetMonth", setId, monthKey),
   getSets: () => ipcRenderer.invoke("sets:get"),
-  saveSet: (name) => ipcRenderer.invoke("sets:save", name),
+  saveSet: (name, itemIds) => ipcRenderer.invoke("sets:save", name, itemIds),
   removeSet: (id) => ipcRenderer.invoke("sets:remove", id),
   updateSet: (id, patch) => ipcRenderer.invoke("sets:update", id, patch),
   getIncome: () => ipcRenderer.invoke("income:get"),

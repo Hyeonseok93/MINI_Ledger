@@ -8,7 +8,6 @@ import {
   quarterMonths,
   whenLabel,
   WEEKDAY_KO,
-  type Analytics,
   type Assignments,
   type Cycle,
   type FixedItem,
@@ -30,17 +29,16 @@ const CYCLE_ORDER: Record<Cycle, number> = {
 
 type LedgerProps = {
   items: FixedItem[];
-  stats: Analytics;
   assignments: Assignments;
   sets: ItemSet[];
   form: Form;
   setForm: (f: Form) => void;
   editingId: string | null;
-  onSubmit: (e: FormEvent) => void;
+  onSubmit: (e: FormEvent) => Promise<FixedItem | undefined> | void;
   onCancel: () => void;
   onEdit: (it: FixedItem) => void;
-  onRemove: (id: string) => void;
-  onSaveSet: (name: string) => Promise<void>;
+  onRemove: (id: string) => Promise<void> | void;
+  onSaveSet: (name: string, itemIds: string[]) => Promise<void>;
   onRemoveSet: (id: string) => Promise<void>;
   onUpdateSet: (id: string, patch: { name?: string; itemIds?: string[]; refreshItems?: boolean }) => Promise<void>;
   onToggleSetMonth: (setId: string, monthKey: string) => Promise<void>;
@@ -54,8 +52,8 @@ export function Ledger(p: LedgerProps) {
   const [setHint, setSetHint] = useState("");
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editItemIds, setEditItemIds] = useState<string[]>([]);
+  /** Working bench for building / editing a set — empty by default. */
+  const [workIds, setWorkIds] = useState<string[]>([]);
   const [editHint, setEditHint] = useState("");
   const [assignYear, setAssignYear] = useState(() => Math.max(INCOME_START.year, new Date().getFullYear()));
   const [saving, setSaving] = useState(false);
@@ -63,9 +61,12 @@ export function Ledger(p: LedgerProps) {
   const selectedSet = p.sets.find((s) => s.id === selectedSetId) ?? null;
   const firstMonth = assignYear === INCOME_START.year ? INCOME_START.month : 1;
   const assignMonths = MONTHS.filter((m) => m >= firstMonth);
+  const setEditing = !!editingSetId;
+  const liveWorkIds = workIds.filter((id) => p.items.some((it) => it.id === id));
 
   const rows = useMemo(() => {
-    const list = [...p.items];
+    const source = p.items.filter((it) => workIds.includes(it.id));
+    const list = [...source];
     const dir = sortDir === "asc" ? 1 : -1;
     list.sort((a, b) => {
       let cmp = 0;
@@ -76,7 +77,14 @@ export function Ledger(p: LedgerProps) {
       return cmp * dir;
     });
     return list;
-  }, [p.items, sortKey, sortDir]);
+  }, [p.items, sortKey, sortDir, workIds]);
+
+  const selectedSetItems = useMemo(() => {
+    if (!selectedSet) return [];
+    return selectedSet.itemIds
+      .map((id) => p.items.find((it) => it.id === id))
+      .filter((it): it is FixedItem => !!it);
+  }, [selectedSet, p.items]);
 
   function clickSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -103,10 +111,27 @@ export function Ledger(p: LedgerProps) {
     return p.sets.some((s) => s.id !== excludeId && s.name.trim().toLowerCase() === label);
   };
 
+  function clearBench() {
+    setWorkIds([]);
+    setEditingSetId(null);
+    setSetName("");
+    setEditHint("");
+    setSetHint("");
+    p.onCancel();
+  }
+
+  async function discardDraftItems(ids: string[]) {
+    const owned = new Set(p.sets.flatMap((s) => s.itemIds));
+    for (const id of ids) {
+      if (!owned.has(id)) await p.onRemove(id);
+    }
+  }
+
   async function handleSaveSet(e: FormEvent) {
     e.preventDefault();
     const label = setName.trim();
-    if (!label || !p.items.length || saving) return;
+    const ids = liveWorkIds;
+    if (!label || !ids.length || saving || setEditing) return;
     if (nameTaken(label)) {
       setSetHint("같은 이름의 세트가 이미 있어요");
       return;
@@ -114,8 +139,8 @@ export function Ledger(p: LedgerProps) {
     setSaving(true);
     setSetHint("");
     try {
-      await p.onSaveSet(label);
-      setSetName("");
+      await p.onSaveSet(label, ids);
+      clearBench();
     } catch (err) {
       const msg = String(err);
       setSetHint(msg.includes("duplicate") ? "같은 이름의 세트가 이미 있어요" : msg);
@@ -125,22 +150,25 @@ export function Ledger(p: LedgerProps) {
   }
 
   function startEditSet(s: ItemSet) {
+    const drafts = workIds.filter((id) => !p.sets.some((set) => set.itemIds.includes(id)));
+    if (drafts.length) void discardDraftItems(drafts);
+    p.onCancel();
     setEditingSetId(s.id);
-    setEditName(s.name);
-    setEditItemIds(s.itemIds.filter((id) => p.items.some((it) => it.id === id)));
+    setSetName(s.name);
+    setWorkIds(s.itemIds.filter((id) => p.items.some((it) => it.id === id)));
     setEditHint("");
+    setSetHint("");
     setSelectedSetId(s.id);
   }
 
-  function toggleEditItem(id: string) {
-    setEditItemIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-    setEditHint("");
+  async function cancelEditSet() {
+    clearBench();
   }
 
   async function commitEditSet(e: FormEvent) {
     e.preventDefault();
     if (!editingSetId) return;
-    const label = editName.trim();
+    const label = setName.trim();
     if (!label) {
       setEditHint("이름을 입력해 주세요");
       return;
@@ -149,33 +177,60 @@ export function Ledger(p: LedgerProps) {
       setEditHint("같은 이름의 세트가 이미 있어요");
       return;
     }
-    if (!editItemIds.length) {
-      setEditHint("항목을 하나 이상 선택해 주세요");
+    const ids = liveWorkIds;
+    if (!ids.length) {
+      setEditHint("세트에 항목이 하나도 없어요");
       return;
     }
     try {
-      await p.onUpdateSet(editingSetId, { name: label, itemIds: editItemIds });
-      setEditingSetId(null);
-      setEditHint("");
+      await p.onUpdateSet(editingSetId, { name: label, itemIds: ids });
+      clearBench();
     } catch (err) {
       const msg = String(err);
       setEditHint(msg.includes("duplicate") ? "같은 이름의 세트가 이미 있어요" : msg);
     }
   }
 
+  async function handleItemSubmit(e: FormEvent) {
+    const row = await p.onSubmit(e);
+    if (row?.id) {
+      setWorkIds((prev) => (prev.includes(row.id) ? prev : [...prev, row.id]));
+      setEditHint("");
+    }
+  }
+
+  /** Bench remove: detach only while editing a set; delete draft only if no set owns it. */
+  async function handleItemRemove(id: string) {
+    setWorkIds((prev) => prev.filter((x) => x !== id));
+    if (setEditing) return;
+    const owned = p.sets.some((s) => s.itemIds.includes(id));
+    if (!owned) await p.onRemove(id);
+  }
+
+  const nameHint = setEditing ? editHint : setHint;
+  const setNameValue = setName;
+
   return (
     <>
       <section className="ledger-head">
         <h1>
-          {p.items.length}
+          {liveWorkIds.length}
           <small>건</small>
         </h1>
         <p>
-          월 환산 합계 <strong>₩{num(p.stats.monthlyTotal)}</strong>
+          {setEditing ? (
+            <>
+              세트 수정 중 <strong>{setNameValue || "…"}</strong>
+            </>
+          ) : liveWorkIds.length ? (
+            <>세트에 묶을 항목을 정리한 뒤 아래에서 저장하세요.</>
+          ) : (
+            <>위에서 항목을 추가해 세트를 만드세요.</>
+          )}
         </p>
       </section>
 
-      <form className={p.editingId ? "entry editing" : "entry"} onSubmit={p.onSubmit}>
+      <form className={p.editingId ? "entry editing" : "entry"} onSubmit={handleItemSubmit}>
         <Field label="항목">
           <input
             required
@@ -227,14 +282,14 @@ export function Ledger(p: LedgerProps) {
           />
         </Field>
         <div className="entry-actions">
+          <button type="submit" className="btn primary">
+            {p.editingId ? "저장" : "추가"}
+          </button>
           {p.editingId && (
             <button type="button" className="btn ghost" onClick={p.onCancel}>
               취소
             </button>
           )}
-          <button type="submit" className="btn primary">
-            {p.editingId ? "저장" : "추가"}
-          </button>
         </div>
       </form>
 
@@ -263,7 +318,7 @@ export function Ledger(p: LedgerProps) {
               <button type="button" onClick={() => p.onEdit(it)}>
                 수정
               </button>
-              <button type="button" className="danger" onClick={() => p.onRemove(it.id)}>
+              <button type="button" className="danger" onClick={() => handleItemRemove(it.id)}>
                 삭제
               </button>
             </span>
@@ -274,124 +329,113 @@ export function Ledger(p: LedgerProps) {
             </span>
           </div>
         ))}
-        {rows.length === 0 && <p className="sheet-empty">위 입력줄에서 첫 고정비를 추가하세요.</p>}
+        {rows.length === 0 && (
+          <p className="sheet-empty">
+            {setEditing
+              ? "이 세트에 항목이 없습니다. 위에서 추가하세요."
+              : "세트에 넣을 항목이 없습니다. 위에서 추가하세요."}
+          </p>
+        )}
       </div>
 
       <section className="sets-panel">
         <div className="sets-head">
           <span className="mono-label">Saved sets</span>
-          <p>지금 장부 전체를 이름으로 저장한 뒤, 세트를 눌러 적용할 달을 고르세요.</p>
+          <p>
+            {setEditing
+              ? "세트 항목을 고친 뒤 아래에서 저장하세요."
+              : "위 작업대 항목을 이름으로 저장한 뒤, 세트를 눌러 적용할 달을 고르세요."}
+          </p>
         </div>
 
-        <form className="set-save" onSubmit={handleSaveSet}>
-          <div className="set-save-field">
-            <input
-              value={setName}
-              onChange={(e) => {
-                setSetName(e.target.value);
-                setSetHint("");
-              }}
-              placeholder="세트 이름"
-              maxLength={40}
-              aria-label="세트 이름"
-              className={setHint ? "bad" : undefined}
-            />
-            {setHint && <span className="set-hint">{setHint}</span>}
-          </div>
-          <button
-            type="submit"
-            className="btn primary"
-            disabled={!setName.trim() || !p.items.length || saving || nameTaken(setName)}
-          >
-            세트 저장
-          </button>
-        </form>
+        {setEditing ? (
+          <form className="set-save set-save-edit" onSubmit={commitEditSet}>
+            <div className="set-save-field">
+              <input
+                value={setNameValue}
+                onChange={(e) => {
+                  setSetName(e.target.value);
+                  setEditHint("");
+                }}
+                placeholder="세트 이름"
+                maxLength={40}
+                aria-label="세트 이름"
+                className={nameHint ? "bad" : undefined}
+              />
+              {nameHint && <span className="set-hint">{nameHint}</span>}
+            </div>
+            <button type="submit" className="btn primary">
+              저장
+            </button>
+            <button type="button" className="btn ghost" onClick={cancelEditSet}>
+              취소
+            </button>
+          </form>
+        ) : (
+          <form className="set-save" onSubmit={handleSaveSet}>
+            <div className="set-save-field">
+              <input
+                value={setNameValue}
+                onChange={(e) => {
+                  setSetName(e.target.value);
+                  setSetHint("");
+                }}
+                placeholder="세트 이름"
+                maxLength={40}
+                aria-label="세트 이름"
+                className={nameHint ? "bad" : undefined}
+              />
+              {nameHint && <span className="set-hint">{nameHint}</span>}
+            </div>
+            <button
+              type="submit"
+              className="btn primary"
+              disabled={!setNameValue.trim() || !liveWorkIds.length || saving || nameTaken(setNameValue)}
+            >
+              세트 저장
+            </button>
+          </form>
+        )}
 
         <ul className="set-list">
           {p.sets.map((s) => {
             const on = selectedSetId === s.id;
             const editing = editingSetId === s.id;
-            const count = s.itemIds.filter((id) => p.items.some((it) => it.id === id)).length;
+            const count = editing
+              ? liveWorkIds.length
+              : s.itemIds.filter((id) => p.items.some((it) => it.id === id)).length;
             return (
-              <li key={s.id} className={editing ? "set-row editing" : on ? "set-row on" : "set-row"}>
-                {editing ? (
-                  <form className="set-edit" onSubmit={commitEditSet}>
-                    <div className="set-edit-name">
-                      <input
-                        autoFocus
-                        value={editName}
-                        maxLength={40}
-                        onChange={(e) => {
-                          setEditName(e.target.value);
-                          setEditHint("");
-                        }}
-                        aria-label="세트 이름 수정"
-                        className={editHint ? "bad" : undefined}
-                      />
-                      <div className="set-edit-actions">
-                        <button type="submit" className="set-act primary">
-                          저장
-                        </button>
-                        <button
-                          type="button"
-                          className="set-act"
-                          onClick={() => {
-                            setEditingSetId(null);
-                            setEditHint("");
-                          }}
-                        >
-                          취소
-                        </button>
-                      </div>
-                    </div>
-                    <div className="set-edit-items">
-                      <span className="mono-label">Items in set · {editItemIds.length}</span>
-                      <ul>
-                        {p.items.map((it) => {
-                          const checked = editItemIds.includes(it.id);
-                          return (
-                            <li key={it.id}>
-                              <label className={checked ? "on" : undefined}>
-                                <input type="checkbox" checked={checked} onChange={() => toggleEditItem(it.id)} />
-                                <span className="nm">{it.name}</span>
-                                <span className="meta">
-                                  {it.category} · ₩{num(perMonth(it))}
-                                </span>
-                              </label>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      {p.items.length === 0 && <p className="set-empty">장부에 항목이 없습니다.</p>}
-                    </div>
-                    {editHint && <span className="set-hint">{editHint}</span>}
-                  </form>
-                ) : (
-                  <>
-                    <button type="button" className="set-pick" onClick={() => setSelectedSetId(on ? null : s.id)}>
-                      <strong>{s.name}</strong>
-                      <span className="set-count">
-                        <b>{count}</b>
-                        <i>항목</i>
-                      </span>
+              <li key={s.id} className={editing || on ? "set-row on" : "set-row"}>
+                <button
+                  type="button"
+                  className="set-pick"
+                  onClick={() => {
+                    if (setEditing) return;
+                    setSelectedSetId(on ? null : s.id);
+                  }}
+                >
+                  <strong>{editing ? setNameValue || s.name : s.name}</strong>
+                  <span className="set-count">
+                    <b>{count}</b>
+                    <i>항목</i>
+                  </span>
+                </button>
+                {!setEditing && (
+                  <div className="set-ops">
+                    <button type="button" onClick={() => startEditSet(s)}>
+                      수정
                     </button>
-                    <div className="set-ops">
-                      <button type="button" onClick={() => startEditSet(s)}>
-                        수정
-                      </button>
-                      <button
-                        type="button"
-                        className="danger"
-                        onClick={() => {
-                          if (selectedSetId === s.id) setSelectedSetId(null);
-                          if (editingSetId === s.id) setEditingSetId(null);
-                          p.onRemoveSet(s.id);
-                        }}
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() => {
+                        if (selectedSetId === s.id) setSelectedSetId(null);
+                        p.onRemoveSet(s.id);
+                      }}
+                    >
+                      삭제
+                    </button>
+                  </div>
                 )}
               </li>
             );
@@ -399,15 +443,14 @@ export function Ledger(p: LedgerProps) {
           {p.sets.length === 0 && <li className="set-empty">저장된 세트가 없습니다.</li>}
         </ul>
 
-        {selectedSet && (
+        {selectedSet && !setEditing && (
           <div className="assign-panel">
             <div className="assign-head">
               <div>
                 <span className="mono-label">Apply set · months</span>
                 <h2>{selectedSet.name}</h2>
                 <p>
-                  <b>{selectedSet.itemIds.filter((id) => p.items.some((it) => it.id === id)).length}</b> 항목 · 달을
-                  누르면 개요·수입에 반영
+                  <b>{selectedSetItems.length}</b> 항목 · 달을 누르면 개요·수입에 반영
                 </p>
               </div>
               <div className="year-switch">
@@ -448,6 +491,30 @@ export function Ledger(p: LedgerProps) {
                   </button>
                 );
               })}
+            </div>
+
+            <div className="assign-items">
+              <span className="mono-label">Set items</span>
+              {selectedSetItems.length === 0 ? (
+                <p className="assign-items-empty">이 세트에 항목이 없습니다.</p>
+              ) : (
+                <ul>
+                  {selectedSetItems.map((it) => (
+                    <li key={it.id}>
+                      <div className="ai-main">
+                        <strong>{it.name}</strong>
+                        <span className="ai-amt">₩{num(perMonth(it))}</span>
+                      </div>
+                      <div className="ai-sub">
+                        <span>{it.category}</span>
+                        <span>{CYCLE_LABEL[it.cycle]}</span>
+                        <span>{whenLabel(it)}</span>
+                        {it.note ? <span>{it.note}</span> : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}

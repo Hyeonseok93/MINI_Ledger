@@ -52,7 +52,7 @@ function registerIpc() {
   ipcMain.handle("assign:toMonths", (_e, itemId, monthKeys) => store.assignItemToMonths(itemId, monthKeys));
   ipcMain.handle("assign:toggleSetMonth", (_e, setId, monthKey) => store.toggleSetMonth(setId, monthKey));
   ipcMain.handle("sets:get", () => store.getSets());
-  ipcMain.handle("sets:save", (_e, name) => store.saveSet(name));
+  ipcMain.handle("sets:save", (_e, name, itemIds) => store.saveSet(name, itemIds));
   ipcMain.handle("sets:remove", (_e, id) => store.removeSet(id));
   ipcMain.handle("sets:update", (_e, id, patch) => store.updateSet(id, patch));
   ipcMain.handle("income:get", () => store.getIncome());

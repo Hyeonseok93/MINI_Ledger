@@ -12,6 +12,8 @@ import {
   perMonth,
   perYear,
   quarterMonths,
+  upcomingInWindow,
+  upcomingWindowEnd,
   whenLabel,
   type FixedItem,
 } from "./schedule";
@@ -140,25 +142,34 @@ describe("nextOccurrence / daysUntil", () => {
   it("returns today when due today", () => {
     const now = new Date(2026, 8, 15); // Sep 15
     const next = nextOccurrence(item({ cycle: "monthly", day: 15 }), now);
-    expect(next.getFullYear()).toBe(2026);
-    expect(next.getMonth()).toBe(8);
-    expect(next.getDate()).toBe(15);
-    expect(daysUntil(next, now)).toBe(0);
+    expect(next).not.toBeNull();
+    expect(next!.getFullYear()).toBe(2026);
+    expect(next!.getMonth()).toBe(8);
+    expect(next!.getDate()).toBe(15);
+    expect(daysUntil(next!, now)).toBe(0);
   });
 
   it("rolls to next month when day already passed", () => {
     const now = new Date(2026, 8, 20);
     const next = nextOccurrence(item({ cycle: "monthly", day: 10 }), now);
-    expect(next.getMonth()).toBe(9);
-    expect(next.getDate()).toBe(10);
-    expect(daysUntil(next, now)).toBe(20);
+    expect(next).not.toBeNull();
+    expect(next!.getMonth()).toBe(9);
+    expect(next!.getDate()).toBe(10);
+    expect(daysUntil(next!, now)).toBe(20);
   });
 
   it("finds next weekday for weekly", () => {
     const now = new Date(2026, 8, 15); // Tue
     const next = nextOccurrence(item({ cycle: "weekly", weekday: 1 }), now); // Mon
-    expect(next.getDate()).toBe(21);
-    expect(daysUntil(next, now)).toBe(6);
+    expect(next).not.toBeNull();
+    expect(next!.getDate()).toBe(21);
+    expect(daysUntil(next!, now)).toBe(6);
+  });
+
+  it("returns null when no assigned month has a due date", () => {
+    const now = new Date(2026, 8, 26);
+    const it = item({ id: "a", cycle: "monthly", day: 15 });
+    expect(nextOccurrence(it, now, { "2026-09": ["a"] })).toBeNull();
   });
 });
 
@@ -210,5 +221,52 @@ describe("analyze", () => {
     expect(future.today).toBe(0);
     expect(future.paidThisMonth).toBe(0);
     expect(future.remainingThisMonth).toBe(100_000);
+  });
+});
+
+describe("upcomingInWindow", () => {
+  it("ends on day 7 of next month", () => {
+    const end = upcomingWindowEnd(new Date(2026, 8, 26)); // Sep 26
+    expect(end.getFullYear()).toBe(2026);
+    expect(end.getMonth()).toBe(9);
+    expect(end.getDate()).toBe(7);
+  });
+
+  it("does not fake TODAY when next month is unassigned", () => {
+    const now = new Date(2026, 8, 26); // Sep 26
+    const items = [
+      item({ id: "tel", cycle: "monthly", amount: 80_950, day: 15 }),
+      item({ id: "ai", cycle: "monthly", amount: 30_065, day: 9 }),
+    ];
+    const assignments = { "2026-09": ["tel", "ai"] }; // Oct not assigned
+    const rows = upcomingInWindow(items, now, assignments);
+    expect(rows).toEqual([]);
+  });
+
+  it("includes today and next-month week when assigned", () => {
+    const now = new Date(2026, 8, 26); // Sep 26
+    const items = [
+      item({ id: "today", cycle: "monthly", amount: 10_000, day: 26 }),
+      item({ id: "oct5", cycle: "monthly", amount: 20_000, day: 5 }),
+      item({ id: "oct8", cycle: "monthly", amount: 30_000, day: 8 }), // outside window
+      item({ id: "past", cycle: "monthly", amount: 40_000, day: 15 }), // already passed this month
+    ];
+    const assignments = {
+      "2026-09": ["today", "past"],
+      "2026-10": ["oct5", "oct8", "past"],
+    };
+    const rows = upcomingInWindow(items, now, assignments);
+    expect(rows.map((r) => r.item.id)).toEqual(["today", "oct5"]);
+    expect(rows[0].dday).toBe(0);
+    expect(rows[1].dday).toBe(9); // Sep 26 → Oct 5
+  });
+
+  it("excludes days after next-month day 7", () => {
+    const now = new Date(2026, 8, 1);
+    const items = [item({ id: "oct7", cycle: "monthly", day: 7 }), item({ id: "oct8", cycle: "monthly", day: 8 })];
+    const rows = upcomingInWindow(items, now, {
+      "2026-10": ["oct7", "oct8"],
+    });
+    expect(rows.map((r) => r.item.id)).toEqual(["oct7"]);
   });
 });

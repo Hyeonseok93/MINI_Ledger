@@ -43,6 +43,22 @@ export function installDevMock() {
   const cloneAssign = () => Object.fromEntries(Object.entries(assignments).map(([k, v]) => [k, [...v]]));
   const cloneSets = () => sets.map((s) => ({ ...s, itemIds: [...s.itemIds] }));
 
+  function scrubAssign(id: string) {
+    for (const key of Object.keys(assignments)) {
+      assignments[key] = assignments[key].filter((x) => x !== id);
+      if (!assignments[key].length) delete assignments[key];
+    }
+  }
+
+  function pruneOrphans() {
+    if (!sets.length) return;
+    const used = new Set(sets.flatMap((s) => s.itemIds));
+    const drop = items.filter((it) => !used.has(it.id)).map((it) => it.id);
+    if (!drop.length) return;
+    items = items.filter((it) => used.has(it.id));
+    for (const id of drop) scrubAssign(id);
+  }
+
   window.ledger = {
     getAll: async () => [...items],
     upsert: async (draft) => {
@@ -101,19 +117,22 @@ export function installDevMock() {
       return cloneAssign();
     },
     getSets: async () => cloneSets(),
-    saveSet: async (name) => {
+    saveSet: async (name, itemIds) => {
       const label = name.trim();
       if (!label) throw new Error("name required");
-      if (!items.length) throw new Error("no items");
+      const known = new Set(items.map((it) => it.id));
+      const ids = [...new Set((itemIds ?? []).filter((id) => known.has(id)))];
+      if (!ids.length) throw new Error("no items");
       if (sets.some((s) => s.name.trim().toLowerCase() === label.toLowerCase())) throw new Error("duplicate name");
       sets = [
         ...sets,
-        { id: `set-${Date.now()}`, name: label, itemIds: items.map((it) => it.id), createdAt: new Date().toISOString() },
+        { id: `set-${Date.now()}`, name: label, itemIds: ids, createdAt: new Date().toISOString() },
       ];
       return cloneSets();
     },
     removeSet: async (id) => {
       sets = sets.filter((s) => s.id !== id);
+      pruneOrphans();
       return cloneSets();
     },
     updateSet: async (id, patch) => {
@@ -137,6 +156,7 @@ export function installDevMock() {
         next.itemIds = items.map((it) => it.id);
       }
       sets = sets.map((s, i) => (i === idx ? next : s));
+      pruneOrphans();
       return cloneSets();
     },
     getIncome: async () => income,

@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { analyze, type Assignments, type FixedItem, type Income, type ItemSet } from "./schedule";
+import { FormEvent, useEffect, useState } from "react";
+import { type Assignments, type FixedItem, type Income, type ItemSet } from "./schedule";
 import { WEEKDAYS_EN } from "./format";
 import { emptyForm, type Form } from "./form";
 import { Overview } from "./Overview";
@@ -26,8 +26,6 @@ export default function App() {
   const [storePath, setStorePath] = useState("");
   const [loaded, setLoaded] = useState(false);
 
-  const stats = useMemo(() => analyze(items, new Date(), new Date(), assignments), [items, assignments]);
-
   async function refresh() {
     const [all, assigns, savedSets, inc, paths] = await Promise.all([
       window.ledger.getAll(),
@@ -52,7 +50,7 @@ export default function App() {
     e.preventDefault();
     setError("");
     try {
-      await window.ledger.upsert({
+      const row = await window.ledger.upsert({
         id: editingId ?? undefined,
         name: form.name,
         amount: Number(form.amount.replace(/,/g, "")),
@@ -67,8 +65,10 @@ export default function App() {
       setForm(emptyForm);
       setEditingId(null);
       await refresh();
+      return row;
     } catch (err) {
       setError(String(err));
+      return undefined;
     }
   }
 
@@ -104,9 +104,10 @@ export default function App() {
     }
   }
 
-  async function saveSet(name: string) {
+  async function saveSet(name: string, itemIds: string[]) {
     try {
-      setSets(await window.ledger.saveSet(name));
+      setSets(await window.ledger.saveSet(name, itemIds));
+      await refresh();
     } catch (err) {
       setError(String(err));
       throw err;
@@ -116,6 +117,7 @@ export default function App() {
   async function removeSet(id: string) {
     try {
       setSets(await window.ledger.removeSet(id));
+      await refresh();
     } catch (err) {
       setError(String(err));
     }
@@ -124,6 +126,7 @@ export default function App() {
   async function updateSet(id: string, patch: { name?: string; itemIds?: string[]; refreshItems?: boolean }) {
     try {
       setSets(await window.ledger.updateSet(id, patch));
+      await refresh();
     } catch (err) {
       setError(String(err));
       throw err;
@@ -166,7 +169,6 @@ export default function App() {
           {loaded && tab === "ledger" && (
             <Ledger
               items={items}
-              stats={stats}
               assignments={assignments}
               sets={sets}
               form={form}

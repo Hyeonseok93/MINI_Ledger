@@ -179,6 +179,21 @@ function scrubAssignments(data, id) {
   }
 }
 
+/** Drop items not referenced by any set (and scrub their month assignments). */
+function pruneOrphanItems(data) {
+  if (!(data.sets || []).length) return;
+  const used = new Set();
+  for (const s of data.sets || []) {
+    for (const id of s.itemIds || []) used.add(id);
+  }
+  const kept = [];
+  for (const it of data.items) {
+    if (used.has(it.id)) kept.push(it);
+    else scrubAssignments(data, it.id);
+  }
+  data.items = kept;
+}
+
 function remove(id) {
   const data = read();
   data.items = data.items.filter((x) => x.id !== id);
@@ -274,18 +289,21 @@ function getSets() {
   );
 }
 
-function saveSet(name) {
+function saveSet(name, itemIds) {
   const label = String(name || "").trim();
   if (!label) throw new Error("name required");
   const data = read();
   if (!Array.isArray(data.sets)) data.sets = [];
   if (nameTaken(data.sets, label)) throw new Error("duplicate name");
-  const itemIds = data.items.filter((it) => it.active !== false).map((it) => it.id);
-  if (!itemIds.length) throw new Error("no items");
+  const known = new Set(data.items.map((x) => x.id));
+  const ids = Array.isArray(itemIds)
+    ? [...new Set(itemIds.map(String).filter((id) => known.has(id)))]
+    : data.items.filter((it) => it.active !== false).map((it) => it.id);
+  if (!ids.length) throw new Error("no items");
   data.sets.push({
     id: crypto.randomUUID(),
     name: label,
-    itemIds,
+    itemIds: ids,
     createdAt: new Date().toISOString(),
   });
   write(data);
@@ -295,6 +313,7 @@ function saveSet(name) {
 function removeSet(id) {
   const data = read();
   data.sets = (data.sets || []).filter((s) => s.id !== id);
+  pruneOrphanItems(data);
   write(data);
   return getSets();
 }
@@ -314,15 +333,16 @@ function updateSet(id, patch = {}) {
 
   if (Array.isArray(patch.itemIds)) {
     const known = new Set(data.items.map((x) => x.id));
-    const itemIds = [...new Set(patch.itemIds.map(String).filter((x) => known.has(x)))];
-    if (!itemIds.length) throw new Error("no items");
-    data.sets[idx].itemIds = itemIds;
+    const nextIds = [...new Set(patch.itemIds.map(String).filter((x) => known.has(x)))];
+    if (!nextIds.length) throw new Error("no items");
+    data.sets[idx].itemIds = nextIds;
   } else if (patch.refreshItems) {
-    const itemIds = data.items.filter((it) => it.active !== false).map((it) => it.id);
-    if (!itemIds.length) throw new Error("no items");
-    data.sets[idx].itemIds = itemIds;
+    const nextIds = data.items.filter((it) => it.active !== false).map((it) => it.id);
+    if (!nextIds.length) throw new Error("no items");
+    data.sets[idx].itemIds = nextIds;
   }
 
+  pruneOrphanItems(data);
   write(data);
   return getSets();
 }

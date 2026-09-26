@@ -2,12 +2,10 @@ import { useMemo, useState } from "react";
 import {
   analyze,
   CYCLE_LABEL,
-  daysUntil,
   dueWithin,
   incomeFor,
-  isAssigned,
-  nextOccurrence,
   perMonth,
+  upcomingInWindow,
   type Analytics,
   type Assignments,
   type FixedItem,
@@ -73,15 +71,14 @@ export function Overview(props: {
           <span className="figure-num">{num(monthSpend)}</span>
         </div>
         <dl className="hero-meta">
-          <div>
-            <dt>연 환산</dt>
-            <dd>₩{num(stats.yearlyTotal)}</dd>
-          </div>
           {earned > 0 ? (
             <>
               <div>
                 <dt>수입 대비</dt>
-                <dd>{Math.round((monthSpend / earned) * 100)}%</dd>
+                <dd>
+                  {Math.round((monthSpend / earned) * 100)}%
+                  <em className="meta-sub">₩{num(earned)}</em>
+                </dd>
               </div>
               <div>
                 <dt>남는 돈</dt>
@@ -192,10 +189,18 @@ function MonthScale({ stats }: { stats: Analytics }) {
         {dots.map(({ item, day, size, offset }) => (
           <div
             key={`${item.id}-${day}`}
-            className={day < stats.today ? "dot past" : "dot"}
-            title={`${day}일 · ${item.name} · ₩${num(item.amount)} (${CYCLE_LABEL[item.cycle]})`}
+            className={[day < stats.today ? "dot past" : "dot", day > days * 0.72 ? "tip-left" : ""]
+              .filter(Boolean)
+              .join(" ")}
             style={{ left: `${pos(day)}%`, width: size, height: size, bottom: 14 + offset }}
-          />
+          >
+            <span className="dot-tip">
+              <b>{day}일</b>
+              <strong>{item.name}</strong>
+              <em>₩{num(item.amount)}</em>
+              <i>{CYCLE_LABEL[item.cycle]}</i>
+            </span>
+          </div>
         ))}
         {showToday && (
           <div className="scale-today" style={{ left: `${pos(stats.today)}%` }}>
@@ -243,37 +248,24 @@ function Categories({
   );
 }
 
-const UPCOMING_DAYS = 30;
-
 function Upcoming({ items, assignments }: { items: FixedItem[]; assignments: Assignments }) {
-  const all = items
-    .filter((it) => it.active)
-    .map((item) => {
-      const next = nextOccurrence(item, new Date(), assignments);
-      return { item, next, dday: daysUntil(next) };
-    })
-    .filter(
-      (x) =>
-        isAssigned(assignments, x.item.id, x.next.getFullYear(), x.next.getMonth() + 1) &&
-        x.dday < UPCOMING_DAYS
-    )
-    .sort((a, b) => a.dday - b.dday || b.item.amount - a.item.amount);
+  const all = upcomingInWindow(items, new Date(), assignments);
 
   return (
     <div className="col">
       <div className="col-head">
-        <span className="mono-label">Upcoming · {UPCOMING_DAYS} days</span>
+        <span className="mono-label">Upcoming · to next week</span>
         <span className="mono-label dim">{all.length}</span>
       </div>
       <ul className="rows">
-        {all.length === 0 && <li className="row-empty">{UPCOMING_DAYS}일 안에 예정된 결제가 없습니다.</li>}
-        {all.map(({ item, next, dday }) => (
-          <li key={item.id} className="row up">
+        {all.length === 0 && <li className="row-empty">오늘부터 다음 달 첫 주까지 예정된 결제가 없습니다.</li>}
+        {all.map(({ item, date, dday }) => (
+          <li key={`${item.id}-${date.getTime()}`} className="row up">
             <span className={dday === 0 ? "row-d today" : "row-d"}>{dday === 0 ? "TODAY" : `D−${dday}`}</span>
             <span className="row-name">
               {item.name}
               <em>
-                {pad2(next.getMonth() + 1)}.{pad2(next.getDate())} · {CYCLE_LABEL[item.cycle]}
+                {pad2(date.getMonth() + 1)}.{pad2(date.getDate())} · {CYCLE_LABEL[item.cycle]}
               </em>
             </span>
             <span className="row-amt">₩{num(item.amount)}</span>
@@ -318,7 +310,10 @@ function CategoryInsight({
     <div className="col">
       <div className="col-head">
         <span className="mono-label">Category share · this month</span>
-        <span className="mono-label dim">{cats.length} 분류</span>
+        <span className="mono-label dim head-count">
+          <b>{cats.length}</b>
+          <i>분류</i>
+        </span>
       </div>
       <div className="pie">
         <div className="donut">

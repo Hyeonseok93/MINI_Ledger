@@ -162,7 +162,7 @@ export function dueWithin(
   return { total, count };
 }
 
-export function nextOccurrence(it: FixedItem, now = new Date(), assignments?: Assignments): Date {
+export function nextOccurrence(it: FixedItem, now = new Date(), assignments?: Assignments): Date | null {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   for (let i = 0; i <= 24; i++) {
     const base = new Date(today.getFullYear(), today.getMonth() + i, 1);
@@ -173,7 +173,42 @@ export function nextOccurrence(it: FixedItem, now = new Date(), assignments?: As
     const hit = i === 0 ? days.find((d) => d >= today.getDate()) : days[0];
     if (hit !== undefined) return new Date(y, m0, hit);
   }
-  return today;
+  return null;
+}
+
+/** End of Upcoming window: day 7 of the next calendar month. */
+export function upcomingWindowEnd(now = new Date()) {
+  return new Date(now.getFullYear(), now.getMonth() + 1, 7);
+}
+
+export type UpcomingEntry = { item: FixedItem; date: Date; dday: number };
+
+/** Dues from today through day 7 of next month (assigned months only). */
+export function upcomingInWindow(
+  items: FixedItem[],
+  now = new Date(),
+  assignments?: Assignments
+): UpcomingEntry[] {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = upcomingWindowEnd(now);
+  const out: UpcomingEntry[] = [];
+  const cache = new Map<string, number[]>();
+
+  for (let t = start.getTime(); t <= end.getTime(); t += 86_400_000) {
+    const date = new Date(t);
+    const y = date.getFullYear();
+    const m0 = date.getMonth();
+    const m1 = m0 + 1;
+    const day = date.getDate();
+    for (const it of itemsForMonth(items, assignments, y, m1)) {
+      const key = `${it.id}-${y}-${m0}`;
+      if (!cache.has(key)) cache.set(key, occurrencesInMonth(it, y, m0));
+      if (!cache.get(key)!.includes(day)) continue;
+      out.push({ item: it, date, dday: daysUntil(date, now) });
+    }
+  }
+
+  return out.sort((a, b) => a.dday - b.dday || b.item.amount - a.item.amount);
 }
 
 export function daysUntil(date: Date, now = new Date()) {
