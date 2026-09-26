@@ -1,20 +1,19 @@
-import { useState } from "react";
-import { perMonth, type FixedItem } from "../schedule";
+import { useMemo, useState } from "react";
+import type { Occurrence } from "../schedule";
 import { SHADES, num } from "../format";
 
 export function CategoryInsight({
   monthSpend,
   byCategory,
-  items,
+  occurrences,
 }: {
   monthSpend: number;
   byCategory: { category: string; amount: number }[];
-  items: FixedItem[];
+  occurrences: Occurrence[];
 }) {
   const [hover, setHover] = useState<string | null>(null);
   const total = Math.max(1, monthSpend);
   const cats = byCategory;
-  const active = items.filter((it) => it.active);
 
   const R = 100;
   const C = 2 * Math.PI * R;
@@ -28,9 +27,19 @@ export function CategoryInsight({
   });
 
   const focus = cats.find((c) => c.category === hover);
-  const members = focus
-    ? active.filter((it) => it.category === focus.category).sort((a, b) => perMonth(b) - perMonth(a))
-    : [];
+  const members = useMemo(() => {
+    if (!focus) return [];
+    const map = new Map<string, { name: string; amount: number }>();
+    for (const o of occurrences) {
+      if (o.item.category !== focus.category) continue;
+      const prev = map.get(o.item.id);
+      map.set(o.item.id, {
+        name: o.item.name,
+        amount: (prev?.amount ?? 0) + o.item.amount,
+      });
+    }
+    return [...map.values()].sort((a, b) => b.amount - a.amount);
+  }, [focus, occurrences]);
 
   return (
     <div className="col">

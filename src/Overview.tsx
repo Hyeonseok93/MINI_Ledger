@@ -138,7 +138,7 @@ export function Overview(props: {
       ) : (
         <>
           <section className="cols">
-            <CategoryInsight monthSpend={monthSpend} byCategory={byMonthCat} items={props.items} />
+            <CategoryInsight monthSpend={monthSpend} byCategory={byMonthCat} occurrences={stats.occurrences} />
             <Categories monthSpend={monthSpend} byCategory={byMonthCat} />
           </section>
           <section className="cols">
