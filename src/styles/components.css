@@ -1,0 +1,34 @@
+﻿/* ??? buttons ?????????????????????????????????????????? */
+
+.btn {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn.primary:hover {
+  background: #b0f5d4;
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: var(--rule-2);
+  color: var(--ink-2);
+}
+
+.btn.ghost:hover {
+  border-color: #4a4d54;
+  color: var(--ink);
+}
+

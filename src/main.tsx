@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import TitleBar from "./TitleBar";
 import "./fonts.css";
-import "./styles.css";
+import "./styles/index.css";
 import { installDevMock } from "./devMock";
 
 if (import.meta.env.DEV) installDevMock();

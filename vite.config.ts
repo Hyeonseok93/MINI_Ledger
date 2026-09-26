@@ -9,4 +9,8 @@ export default defineConfig({
     strictPort: true,
   },
   base: "./",
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts", "electron/**/*.test.ts"],
+  },
 });

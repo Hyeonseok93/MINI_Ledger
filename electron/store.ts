@@ -1,6 +1,6 @@
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
 
 let storeDir = "";
 let filePath = "";
@@ -416,7 +416,7 @@ function importSnapshot(raw) {
   return true;
 }
 
-module.exports = {
+export {
   init,
   getStoreDir,
   getAll,

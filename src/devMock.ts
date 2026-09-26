@@ -2,6 +2,7 @@ import type { Assignments, FixedItem, Income, ItemSet } from "./schedule";
 import { monthKey } from "./schedule";
 import { INCOME_START } from "./format";
 import { SAMPLE } from "./sampleData";
+import { isLedgerSnapshot, type LedgerSnapshot } from "./snapshot";
 
 export function installDevMock() {
   if (window.ledger) return;
@@ -184,7 +185,7 @@ export function installDevMock() {
     },
     getPaths: async () => ({ userData: "", storeDir: "browser-mock" }),
     exportJson: async () => {
-      const snap = { version: 3, items, assignments, sets, income };
+      const snap: LedgerSnapshot = { version: 3, items, assignments, sets, income };
       const blob = new Blob([JSON.stringify(snap, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -206,13 +207,8 @@ export function installDevMock() {
       if (!window.confirm("현재 장부를 선택한 파일로 바꿀까요?\n항목·세트·월 적용·수입이 모두 덮어씌워집니다.")) {
         return { ok: false };
       }
-      const raw = JSON.parse(await file.text()) as {
-        items?: FixedItem[];
-        assignments?: Assignments;
-        sets?: ItemSet[];
-        income?: Income;
-      };
-      if (!raw || !Array.isArray(raw.items)) throw new Error("invalid backup");
+      const raw: unknown = JSON.parse(await file.text());
+      if (!isLedgerSnapshot(raw)) throw new Error("invalid backup");
       items = raw.items;
       assignments = raw.assignments && typeof raw.assignments === "object" ? raw.assignments : {};
       sets = Array.isArray(raw.sets) ? raw.sets : [];

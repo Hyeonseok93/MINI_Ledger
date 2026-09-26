@@ -1,4 +1,5 @@
 import type { Assignments, FixedItem, Income, ItemSet } from "./schedule";
+import type { LedgerSnapshot } from "./snapshot";
 
 type FixedDraft = Partial<FixedItem> & {
   name: string;
@@ -38,3 +39,5 @@ declare global {
     windowControls?: WindowControlsApi;
   }
 }
+
+export type { LedgerSnapshot, FixedDraft, LedgerApi };

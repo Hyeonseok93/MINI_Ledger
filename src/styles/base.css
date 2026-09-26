@@ -1,0 +1,104 @@
+﻿:root {
+  --bg: #0b0c0e;
+  --bg-2: #111215;
+  --rule: #1b1d21;
+  --rule-2: #2a2d33;
+  --ink: #eceae4;
+  --ink-2: #b4b6bb;
+  --muted: #6f737b;
+  --accent: #94efc3;
+  --accent-ink: #0b0c0e;
+  --signal: #ff6a2b;
+  --warn: #ff6a5c;
+  --sans: "Pretendard Variable", "Segoe UI", "Malgun Gothic", sans-serif;
+  --mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--bg);
+  user-select: none;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: rgba(148, 239, 195, 0.3);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #23262b;
+  border: 3px solid var(--bg);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #33373d;
+}
+
+.mono-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.mono-label.dim {
+  color: #4a4d54;
+}
+
+.mono-label.head-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.mono-label.head-count b {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.mono-label.head-count i {
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: inherit;
+}
+
