@@ -20,7 +20,7 @@ export const SAMPLE: Seed[] = [
   { name: "Claude Pro", amount: 29000, cycle: "monthly", day: 21, category: "구독" },
   { name: "실손보험", amount: 48000, cycle: "monthly", day: 25, category: "보험" },
   { name: "출근 커피", amount: 2500, cycle: "daily", category: "기타" },
-  { name: "필라테스", amount: 30000, cycle: "weekly", weekday: 3, category: "운동·취미" },
+  { name: "필라테스", amount: 30000, cycle: "weekly", weekday: 3, category: "운동" },
   { name: "자동차보험", amount: 210000, cycle: "quarterly", month: 3, day: 5, category: "차량" },
-  { name: "도메인·호스팅", amount: 180000, cycle: "yearly", month: 9, day: 12, category: "소프트웨어", note: "연 1회" },
+  { name: "도메인·호스팅", amount: 180000, cycle: "yearly", month: 9, day: 12, category: "구독", note: "연 1회" },
 ];

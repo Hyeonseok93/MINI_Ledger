@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { fixedInMonth, incomeFor, monthKey, type FixedItem, type Income } from "./schedule";
+import { fixedInMonth, incomeFor, monthKey, type Assignments, type FixedItem, type Income } from "./schedule";
 import { INCOME_START, MONTHS, man, num, pad2, parseWon, won } from "./format";
 
-export function IncomePage(props: { items: FixedItem[]; income: Income; onSave: (next: Income) => void }) {
+export function IncomePage(props: {
+  items: FixedItem[];
+  income: Income;
+  assignments: Assignments;
+  onSave: (next: Income) => void;
+}) {
   const { income } = props;
   const now = new Date();
   const [year, setYear] = useState(Math.max(INCOME_START.year, now.getFullYear()));
@@ -17,7 +22,7 @@ export function IncomePage(props: { items: FixedItem[]; income: Income; onSave: 
   const months = MONTHS.filter((m) => m >= firstMonth).map((m) => {
     const key = monthKey(year, m);
     const earned = incomeFor(income, year, m);
-    const fixed = fixedInMonth(props.items, year, m - 1);
+    const fixed = fixedInMonth(props.items, year, m - 1, props.assignments);
     const current = year === now.getFullYear() && m === now.getMonth() + 1;
     return { m, key, earned, fixed, current, custom: key in income.months };
   });

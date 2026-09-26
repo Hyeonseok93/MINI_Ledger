@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { analyze, type FixedItem, type Income } from "./schedule";
-import { SAMPLE } from "./sampleData";
+import { analyze, type Assignments, type FixedItem, type Income, type ItemSet } from "./schedule";
 import { WEEKDAYS_EN } from "./format";
 import { emptyForm, type Form } from "./form";
 import { Overview } from "./Overview";
@@ -18,6 +17,8 @@ const PAGES: Record<Tab, { index: string; title: string }> = {
 export default function App() {
   const [tab, setTab] = useState<Tab>("overview");
   const [items, setItems] = useState<FixedItem[]>([]);
+  const [assignments, setAssignments] = useState<Assignments>({});
+  const [sets, setSets] = useState<ItemSet[]>([]);
   const [income, setIncome] = useState<Income>({ base: 0, months: {} });
   const [form, setForm] = useState<Form>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -25,15 +26,19 @@ export default function App() {
   const [storePath, setStorePath] = useState("");
   const [loaded, setLoaded] = useState(false);
 
-  const stats = useMemo(() => analyze(items), [items]);
+  const stats = useMemo(() => analyze(items, new Date(), new Date(), assignments), [items, assignments]);
 
   async function refresh() {
-    const [all, inc, paths] = await Promise.all([
+    const [all, assigns, savedSets, inc, paths] = await Promise.all([
       window.ledger.getAll(),
+      window.ledger.getAssignments(),
+      window.ledger.getSets(),
       window.ledger.getIncome(),
       window.ledger.getPaths(),
     ]);
     setItems(all);
+    setAssignments(assigns);
+    setSets(savedSets);
     setIncome(inc);
     setStorePath(paths.storeDir);
     setLoaded(true);
@@ -99,9 +104,38 @@ export default function App() {
     }
   }
 
-  async function loadSample() {
-    for (const s of SAMPLE) await window.ledger.upsert({ ...s, note: s.note ?? "", active: true });
-    await refresh();
+  async function saveSet(name: string) {
+    try {
+      setSets(await window.ledger.saveSet(name));
+    } catch (err) {
+      setError(String(err));
+      throw err;
+    }
+  }
+
+  async function removeSet(id: string) {
+    try {
+      setSets(await window.ledger.removeSet(id));
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
+  async function updateSet(id: string, patch: { name?: string; itemIds?: string[]; refreshItems?: boolean }) {
+    try {
+      setSets(await window.ledger.updateSet(id, patch));
+    } catch (err) {
+      setError(String(err));
+      throw err;
+    }
+  }
+
+  async function toggleSetMonth(setId: string, key: string) {
+    try {
+      setAssignments(await window.ledger.toggleSetMonth(setId, key));
+    } catch (err) {
+      setError(String(err));
+    }
   }
 
   return (
@@ -124,20 +158,17 @@ export default function App() {
           <PageHead {...PAGES[tab]} />
           {error && <p className="error">{error}</p>}
           {loaded && tab === "overview" && (
-            <Overview
-              stats={stats}
-              items={items}
-              income={income}
-              onAdd={() => setTab("ledger")}
-              onSample={loadSample}
-              onIncome={() => setTab("income")}
-            />
+            <Overview items={items} income={income} assignments={assignments} onIncome={() => setTab("income")} />
           )}
-          {loaded && tab === "income" && <IncomePage items={items} income={income} onSave={saveIncome} />}
+          {loaded && tab === "income" && (
+            <IncomePage items={items} income={income} assignments={assignments} onSave={saveIncome} />
+          )}
           {loaded && tab === "ledger" && (
             <Ledger
               items={items}
               stats={stats}
+              assignments={assignments}
+              sets={sets}
               form={form}
               setForm={setForm}
               editingId={editingId}
@@ -148,6 +179,10 @@ export default function App() {
               }}
               onEdit={startEdit}
               onRemove={remove}
+              onSaveSet={saveSet}
+              onRemoveSet={removeSet}
+              onUpdateSet={updateSet}
+              onToggleSetMonth={toggleSetMonth}
             />
           )}
         </div>

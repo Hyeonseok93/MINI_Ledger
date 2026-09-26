@@ -18,10 +18,40 @@ export type Income = {
   months: Record<string, number>;
 };
 
+/** monthKey ("2026-09") → item ids applied that month */
+export type Assignments = Record<string, string[]>;
+
+export type ItemSet = {
+  id: string;
+  name: string;
+  itemIds: string[];
+  createdAt: string;
+};
+
 export const monthKey = (year: number, month1: number) => `${year}-${String(month1).padStart(2, "0")}`;
 
 export const incomeFor = (income: Income, year: number, month1: number) =>
   income.months[monthKey(year, month1)] ?? income.base;
+
+export function isAssigned(assignments: Assignments, itemId: string, year: number, month1: number) {
+  return (assignments[monthKey(year, month1)] ?? []).includes(itemId);
+}
+
+/** undefined assignments = legacy (all active). empty object = nothing assigned. */
+export function itemsForMonth(
+  items: FixedItem[],
+  assignments: Assignments | undefined,
+  year: number,
+  month1: number
+) {
+  if (assignments === undefined) return items.filter((it) => it.active);
+  const ids = new Set(assignments[monthKey(year, month1)] ?? []);
+  return items.filter((it) => it.active && ids.has(it.id));
+}
+
+export function assignedMonthCount(assignments: Assignments, itemId: string) {
+  return Object.values(assignments).filter((ids) => ids.includes(itemId)).length;
+}
 
 export const CYCLES: { value: Cycle; label: string }[] = [
   { value: "daily", label: "매일" },
@@ -95,21 +125,34 @@ export function whenLabel(it: FixedItem) {
   }
 }
 
-export const fixedInMonth = (items: FixedItem[], year: number, month0: number) =>
-  items
-    .filter((it) => it.active)
-    .reduce((sum, it) => sum + occurrencesInMonth(it, year, month0).length * it.amount, 0);
+export const fixedInMonth = (
+  items: FixedItem[],
+  year: number,
+  month0: number,
+  assignments?: Assignments
+) =>
+  itemsForMonth(items, assignments, year, month0 + 1).reduce(
+    (sum, it) => sum + occurrencesInMonth(it, year, month0).length * it.amount,
+    0
+  );
 
-export function dueWithin(items: FixedItem[], days: number, now = new Date()) {
+export function dueWithin(
+  items: FixedItem[],
+  days: number,
+  now = new Date(),
+  assignments?: Assignments
+) {
   let total = 0;
   let count = 0;
   const cache = new Map<string, number[]>();
   for (let i = 0; i < days; i++) {
     const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
-    for (const it of items) {
-      if (!it.active) continue;
-      const key = `${it.id}-${date.getFullYear()}-${date.getMonth()}`;
-      if (!cache.has(key)) cache.set(key, occurrencesInMonth(it, date.getFullYear(), date.getMonth()));
+    const y = date.getFullYear();
+    const m0 = date.getMonth();
+    const m1 = m0 + 1;
+    for (const it of itemsForMonth(items, assignments, y, m1)) {
+      const key = `${it.id}-${y}-${m0}`;
+      if (!cache.has(key)) cache.set(key, occurrencesInMonth(it, y, m0));
       if (cache.get(key)!.includes(date.getDate())) {
         total += it.amount;
         count += 1;
@@ -119,13 +162,16 @@ export function dueWithin(items: FixedItem[], days: number, now = new Date()) {
   return { total, count };
 }
 
-export function nextOccurrence(it: FixedItem, now = new Date()): Date {
+export function nextOccurrence(it: FixedItem, now = new Date(), assignments?: Assignments): Date {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  for (let i = 0; i <= 12; i++) {
+  for (let i = 0; i <= 24; i++) {
     const base = new Date(today.getFullYear(), today.getMonth() + i, 1);
-    const days = occurrencesInMonth(it, base.getFullYear(), base.getMonth());
+    const y = base.getFullYear();
+    const m0 = base.getMonth();
+    if (assignments && !isAssigned(assignments, it.id, y, m0 + 1)) continue;
+    const days = occurrencesInMonth(it, y, m0);
     const hit = i === 0 ? days.find((d) => d >= today.getDate()) : days[0];
-    if (hit !== undefined) return new Date(base.getFullYear(), base.getMonth(), hit);
+    if (hit !== undefined) return new Date(y, m0, hit);
   }
   return today;
 }
@@ -150,30 +196,40 @@ export type Analytics = {
   upcoming: Occurrence[];
 };
 
-export function analyze(items: FixedItem[], now = new Date()): Analytics {
-  const active = items.filter((it) => it.active);
-  const year = now.getFullYear();
-  const month0 = now.getMonth();
-  const today = now.getDate();
+/** `view` = any day in the month to analyze. `asOf` = real "today" for paid/remaining. */
+export function analyze(
+  items: FixedItem[],
+  view = new Date(),
+  asOf = view,
+  assignments?: Assignments
+): Analytics {
+  const year = view.getFullYear();
+  const month0 = view.getMonth();
+  const dim = daysInMonth(year, month0);
+  const monthItems = itemsForMonth(items, assignments, year, month0 + 1);
 
-  const occurrences: Occurrence[] = active.flatMap((item) =>
+  const sameMonth = year === asOf.getFullYear() && month0 === asOf.getMonth();
+  const isPast = new Date(year, month0, 1) < new Date(asOf.getFullYear(), asOf.getMonth(), 1);
+  const today = sameMonth ? asOf.getDate() : isPast ? dim + 1 : 0;
+
+  const occurrences: Occurrence[] = monthItems.flatMap((item) =>
     occurrencesInMonth(item, year, month0).map((day) => ({ item, day }))
   );
 
   const byCat = new Map<string, number>();
-  for (const it of active) byCat.set(it.category, (byCat.get(it.category) ?? 0) + perMonth(it));
+  for (const it of monthItems) byCat.set(it.category, (byCat.get(it.category) ?? 0) + perMonth(it));
 
-  const upcoming = active
-    .map((item) => ({ item, day: occurrencesInMonth(item, year, month0).find((d) => d >= today) }))
+  const upcoming = monthItems
+    .map((item) => ({ item, day: occurrencesInMonth(item, year, month0).find((d) => d >= Math.max(1, today)) }))
     .filter((o): o is Occurrence => o.day !== undefined)
     .sort((a, b) => a.day - b.day || b.item.amount - a.item.amount);
 
   return {
     today,
-    daysInMonth: daysInMonth(year, month0),
-    count: active.length,
-    monthlyTotal: active.reduce((s, it) => s + perMonth(it), 0),
-    yearlyTotal: active.reduce((s, it) => s + perYear(it), 0),
+    daysInMonth: dim,
+    count: monthItems.length,
+    monthlyTotal: monthItems.reduce((s, it) => s + perMonth(it), 0),
+    yearlyTotal: monthItems.reduce((s, it) => s + perYear(it), 0),
     paidThisMonth: occurrences.filter((o) => o.day < today).reduce((s, o) => s + o.item.amount, 0),
     remainingThisMonth: occurrences.filter((o) => o.day >= today).reduce((s, o) => s + o.item.amount, 0),
     byCategory: [...byCat]

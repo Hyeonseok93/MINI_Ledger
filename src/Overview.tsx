@@ -1,39 +1,76 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  analyze,
   CYCLE_LABEL,
   daysUntil,
   dueWithin,
   incomeFor,
+  isAssigned,
   nextOccurrence,
   perMonth,
   type Analytics,
+  type Assignments,
   type FixedItem,
   type Income,
+  type Occurrence,
 } from "./schedule";
-import { DAYS, SHADES, man, num, pad2, won } from "./format";
+import {
+  canShiftPrev,
+  DAYS,
+  SHADES,
+  man,
+  num,
+  pad2,
+  shiftYearMonth,
+  won,
+  yearMonthFromDate,
+  ymLabel,
+  type YearMonth,
+} from "./format";
 
 export function Overview(props: {
-  stats: Analytics;
   items: FixedItem[];
   income: Income;
-  onAdd: () => void;
-  onSample: () => void;
+  assignments: Assignments;
   onIncome: () => void;
 }) {
-  const { stats } = props;
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const earned = incomeFor(props.income, now.getFullYear(), month);
+  const asOf = useMemo(() => new Date(), []);
+  const [cursor, setCursor] = useState<YearMonth>(() => yearMonthFromDate(asOf));
+  const view = useMemo(() => new Date(cursor.year, cursor.month - 1, 1), [cursor]);
+  const stats = useMemo(
+    () => analyze(props.items, view, asOf, props.assignments),
+    [props.items, props.assignments, view, asOf]
+  );
+
+  const isCurrent =
+    cursor.year === asOf.getFullYear() && cursor.month === asOf.getMonth() + 1;
+  const monthSpend = stats.occurrences.reduce((s, o) => s + o.item.amount, 0);
+  const earned = incomeFor(props.income, cursor.year, cursor.month);
+  const byMonthCat = useMemo(() => categoryFromOccurrences(stats.occurrences), [stats.occurrences]);
 
   return (
     <>
       <section className="hero">
-        <span className="mono-label">
-          Monthly fixed · {now.getFullYear()}.{String(month).padStart(2, "0")}
-        </span>
+        <div className="month-switch">
+          <button
+            type="button"
+            disabled={!canShiftPrev(cursor)}
+            onClick={() => setCursor((c) => shiftYearMonth(c, -1))}
+            aria-label="이전 달"
+          >
+            ‹
+          </button>
+          <span className="mono-label">
+            Monthly fixed · {ymLabel(cursor)}
+            {isCurrent && <em className="month-now">이번 달</em>}
+          </span>
+          <button type="button" onClick={() => setCursor((c) => shiftYearMonth(c, 1))} aria-label="다음 달">
+            ›
+          </button>
+        </div>
         <div className="figure">
           <span className="figure-cur">₩</span>
-          <span className="figure-num">{num(stats.monthlyTotal)}</span>
+          <span className="figure-num">{num(monthSpend)}</span>
         </div>
         <dl className="hero-meta">
           <div>
@@ -44,13 +81,11 @@ export function Overview(props: {
             <>
               <div>
                 <dt>수입 대비</dt>
-                <dd>{Math.round((stats.monthlyTotal / earned) * 100)}%</dd>
+                <dd>{Math.round((monthSpend / earned) * 100)}%</dd>
               </div>
               <div>
                 <dt>남는 돈</dt>
-                <dd className={earned - stats.monthlyTotal < 0 ? "neg" : "accent"}>
-                  {won(earned - stats.monthlyTotal)}
-                </dd>
+                <dd className={earned - monthSpend < 0 ? "neg" : "accent"}>{won(earned - monthSpend)}</dd>
               </div>
             </>
           ) : (
@@ -74,25 +109,29 @@ export function Overview(props: {
 
       {stats.count === 0 ? (
         <section className="empty">
-          <p>아직 등록된 고정비가 없습니다.</p>
-          <div className="empty-actions">
-            <button type="button" className="btn primary" onClick={props.onAdd}>
-              장부에 추가
-            </button>
-            <button type="button" className="btn ghost" onClick={props.onSample}>
-              예시 데이터로 보기
-            </button>
-          </div>
+          <span className="mono-label">Fixed costs</span>
+          <p className="empty-title">
+            {props.items.length === 0
+              ? "아직 등록된 고정비가 없습니다"
+              : `${ymLabel(cursor)}에 적용된 항목이 없습니다`}
+          </p>
         </section>
       ) : (
         <>
           <section className="cols">
-            <CategoryInsight stats={stats} items={props.items} />
-            <Categories stats={stats} />
+            <CategoryInsight monthSpend={monthSpend} byCategory={byMonthCat} items={props.items} />
+            <Categories monthSpend={monthSpend} byCategory={byMonthCat} />
           </section>
           <section className="cols">
-            <RhythmInsight stats={stats} items={props.items} />
-            <Upcoming items={props.items} />
+            <RhythmInsight
+              stats={stats}
+              items={props.items}
+              assignments={props.assignments}
+              cursor={cursor}
+              asOf={asOf}
+              isCurrent={isCurrent}
+            />
+            <Upcoming items={props.items} assignments={props.assignments} />
           </section>
         </>
       )}
@@ -100,9 +139,19 @@ export function Overview(props: {
   );
 }
 
+function categoryFromOccurrences(occurrences: Occurrence[]) {
+  const map = new Map<string, number>();
+  for (const o of occurrences) map.set(o.item.category, (map.get(o.item.category) ?? 0) + o.item.amount);
+  return [...map]
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
 function MonthScale({ stats }: { stats: Analytics }) {
   const days = stats.daysInMonth;
   const pos = (d: number) => ((d - 1) / (days - 1)) * 100;
+  const showToday = stats.today >= 1 && stats.today <= days;
+  const pastWidth = stats.today <= 0 ? 0 : stats.today > days ? 100 : pos(stats.today);
 
   const plotted = stats.occurrences.filter((o) => o.item.cycle !== "daily");
   const dailyCount = new Set(stats.occurrences.filter((o) => o.item.cycle === "daily").map((o) => o.item.id)).size;
@@ -131,7 +180,7 @@ function MonthScale({ stats }: { stats: Analytics }) {
       </div>
 
       <div className="scale-track">
-        <div className="scale-past" style={{ width: `${pos(stats.today)}%` }} />
+        <div className="scale-past" style={{ width: `${pastWidth}%` }} />
         {DAYS.slice(0, days).map((d) => {
           const major = d === 1 || d % 5 === 0 || d === days;
           return (
@@ -148,9 +197,11 @@ function MonthScale({ stats }: { stats: Analytics }) {
             style={{ left: `${pos(day)}%`, width: size, height: size, bottom: 14 + offset }}
           />
         ))}
-        <div className="scale-today" style={{ left: `${pos(stats.today)}%` }}>
-          <span>Today {String(stats.today).padStart(2, "0")}</span>
-        </div>
+        {showToday && (
+          <div className="scale-today" style={{ left: `${pos(stats.today)}%` }}>
+            <span>Today {String(stats.today).padStart(2, "0")}</span>
+          </div>
+        )}
       </div>
       {dailyCount > 0 && (
         <p className="scale-note">매일 결제 {dailyCount}건은 합계에만 포함하고 눈금에는 표시하지 않습니다.</p>
@@ -159,21 +210,27 @@ function MonthScale({ stats }: { stats: Analytics }) {
   );
 }
 
-function Categories({ stats }: { stats: Analytics }) {
-  const total = Math.max(1, stats.monthlyTotal);
+function Categories({
+  monthSpend,
+  byCategory,
+}: {
+  monthSpend: number;
+  byCategory: { category: string; amount: number }[];
+}) {
+  const total = Math.max(1, monthSpend);
   return (
     <div className="col">
       <div className="col-head">
-        <span className="mono-label">By category · per month</span>
-        <span className="mono-label dim">{stats.byCategory.length}</span>
+        <span className="mono-label">By category · this month</span>
+        <span className="mono-label dim">{byCategory.length}</span>
       </div>
       <div className="stack">
-        {stats.byCategory.map((c, i) => (
+        {byCategory.map((c, i) => (
           <i key={c.category} style={{ width: `${(c.amount / total) * 100}%`, opacity: SHADES[i] ?? 0.1 }} />
         ))}
       </div>
       <ul className="rows">
-        {stats.byCategory.map((c, i) => (
+        {byCategory.map((c, i) => (
           <li key={c.category} className="row cat">
             <span className="swatch" style={{ opacity: SHADES[i] ?? 0.1 }} />
             <span className="row-name">{c.category}</span>
@@ -188,14 +245,18 @@ function Categories({ stats }: { stats: Analytics }) {
 
 const UPCOMING_DAYS = 30;
 
-function Upcoming({ items }: { items: FixedItem[] }) {
+function Upcoming({ items, assignments }: { items: FixedItem[]; assignments: Assignments }) {
   const all = items
     .filter((it) => it.active)
     .map((item) => {
-      const next = nextOccurrence(item);
+      const next = nextOccurrence(item, new Date(), assignments);
       return { item, next, dday: daysUntil(next) };
     })
-    .filter((x) => x.dday < UPCOMING_DAYS)
+    .filter(
+      (x) =>
+        isAssigned(assignments, x.item.id, x.next.getFullYear(), x.next.getMonth() + 1) &&
+        x.dday < UPCOMING_DAYS
+    )
     .sort((a, b) => a.dday - b.dday || b.item.amount - a.item.amount);
 
   return (
@@ -223,10 +284,18 @@ function Upcoming({ items }: { items: FixedItem[] }) {
   );
 }
 
-function CategoryInsight({ stats, items }: { stats: Analytics; items: FixedItem[] }) {
+function CategoryInsight({
+  monthSpend,
+  byCategory,
+  items,
+}: {
+  monthSpend: number;
+  byCategory: { category: string; amount: number }[];
+  items: FixedItem[];
+}) {
   const [hover, setHover] = useState<string | null>(null);
-  const total = Math.max(1, stats.monthlyTotal);
-  const cats = stats.byCategory;
+  const total = Math.max(1, monthSpend);
+  const cats = byCategory;
   const active = items.filter((it) => it.active);
 
   const R = 100;
@@ -281,8 +350,8 @@ function CategoryInsight({ stats, items }: { stats: Analytics; items: FixedItem[
               </>
             ) : (
               <>
-                <span className="dc-label">이번 달 고정비</span>
-                <strong className="sm">₩{num(stats.monthlyTotal)}</strong>
+                <span className="dc-label">이 달 고정비</span>
+                <strong className="sm">₩{num(monthSpend)}</strong>
                 <span className="dc-hint">조각에 마우스를 올려보세요</span>
               </>
             )}
@@ -293,12 +362,25 @@ function CategoryInsight({ stats, items }: { stats: Analytics; items: FixedItem[
   );
 }
 
-function RhythmInsight({ stats, items }: { stats: Analytics; items: FixedItem[] }) {
-  const now = new Date();
-  const lead = (new Date(now.getFullYear(), now.getMonth(), 1).getDay() + 6) % 7;
+function RhythmInsight({
+  stats,
+  items,
+  assignments,
+  cursor,
+  asOf,
+  isCurrent,
+}: {
+  stats: Analytics;
+  items: FixedItem[];
+  assignments: Assignments;
+  cursor: YearMonth;
+  asOf: Date;
+  isCurrent: boolean;
+}) {
+  const lead = (new Date(cursor.year, cursor.month - 1, 1).getDay() + 6) % 7;
   const weekOf = (d: number) => Math.floor((d - 1 + lead) / 7);
   const weekCount = weekOf(stats.daysInMonth) + 1;
-  const thisWeek = weekOf(stats.today);
+  const thisWeek = isCurrent ? weekOf(stats.today) : -1;
 
   const weeks = Array.from({ length: weekCount }, (_, w) => {
     const from = Math.max(1, w * 7 - lead + 1);
@@ -311,8 +393,9 @@ function RhythmInsight({ stats, items }: { stats: Analytics; items: FixedItem[] 
   const byDay = new Map<number, number>();
   for (const o of stats.occurrences) byDay.set(o.day, (byDay.get(o.day) ?? 0) + o.item.amount);
   const peak = [...byDay].sort((a, b) => b[1] - a[1])[0];
-  const next7 = dueWithin(items, 7, now);
+  const next7 = isCurrent ? dueWithin(items, 7, asOf, assignments) : null;
   const remainingCount = stats.occurrences.filter((o) => o.day >= stats.today).length;
+  const monthTotal = stats.occurrences.reduce((s, o) => s + o.item.amount, 0);
 
   return (
     <div className="col">
@@ -323,12 +406,12 @@ function RhythmInsight({ stats, items }: { stats: Analytics; items: FixedItem[] 
       <div className="rhythm">
         <dl className="rhythm-stats">
           <div>
-            <dt>다음 7일</dt>
-            <dd>₩{num(next7.total)}</dd>
-            <small>{next7.count}건</small>
+            <dt>{isCurrent ? "다음 7일" : "이 달 합계"}</dt>
+            <dd>₩{num(isCurrent ? next7!.total : monthTotal)}</dd>
+            <small>{isCurrent ? `${next7!.count}건` : `${stats.occurrences.length}건`}</small>
           </div>
           <div>
-            <dt>이번 달 남은 결제</dt>
+            <dt>{isCurrent ? "이번 달 남은 결제" : stats.today > stats.daysInMonth ? "남은 결제" : "예정 결제"}</dt>
             <dd className="accent">₩{num(stats.remainingThisMonth)}</dd>
             <small>{remainingCount}건</small>
           </div>

@@ -123,6 +123,19 @@ describe("fixedInMonth", () => {
   });
 });
 
+describe("assignments", () => {
+  it("filters items for a month", () => {
+    const items = [
+      item({ id: "a", cycle: "monthly", amount: 50_000 }),
+      item({ id: "b", cycle: "monthly", amount: 20_000 }),
+    ];
+    const assignments = { "2026-09": ["a"] };
+    expect(fixedInMonth(items, 2026, 8, assignments)).toBe(50_000);
+    expect(fixedInMonth(items, 2026, 9, assignments)).toBe(0);
+    expect(analyze(items, new Date(2026, 8, 15), new Date(2026, 8, 15), assignments).count).toBe(1);
+  });
+});
+
 describe("nextOccurrence / daysUntil", () => {
   it("returns today when due today", () => {
     const now = new Date(2026, 8, 15); // Sep 15
@@ -183,5 +196,19 @@ describe("analyze", () => {
       { category: "구독", amount: 30_000 },
     ]);
     expect(a.upcoming.map((o) => o.item.id)).toEqual(["b"]);
+  });
+
+  it("treats past months as fully paid and future as fully remaining", () => {
+    const asOf = new Date(2026, 8, 15); // Sep 15
+    const items = [item({ id: "a", cycle: "monthly", amount: 100_000, day: 10 })];
+    const past = analyze(items, new Date(2026, 7, 1), asOf); // Aug
+    expect(past.today).toBe(32);
+    expect(past.paidThisMonth).toBe(100_000);
+    expect(past.remainingThisMonth).toBe(0);
+
+    const future = analyze(items, new Date(2026, 9, 1), asOf); // Oct
+    expect(future.today).toBe(0);
+    expect(future.paidThisMonth).toBe(0);
+    expect(future.remainingThisMonth).toBe(100_000);
   });
 });

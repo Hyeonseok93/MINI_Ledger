@@ -47,6 +47,14 @@ function registerIpc() {
   ipcMain.handle("store:getAll", () => store.getAll());
   ipcMain.handle("store:upsert", (_e, item) => store.upsert(item));
   ipcMain.handle("store:remove", (_e, id) => store.remove(id));
+  ipcMain.handle("assign:get", () => store.getAssignments());
+  ipcMain.handle("assign:toggle", (_e, itemId, monthKey) => store.toggleAssign(itemId, monthKey));
+  ipcMain.handle("assign:toMonths", (_e, itemId, monthKeys) => store.assignItemToMonths(itemId, monthKeys));
+  ipcMain.handle("assign:toggleSetMonth", (_e, setId, monthKey) => store.toggleSetMonth(setId, monthKey));
+  ipcMain.handle("sets:get", () => store.getSets());
+  ipcMain.handle("sets:save", (_e, name) => store.saveSet(name));
+  ipcMain.handle("sets:remove", (_e, id) => store.removeSet(id));
+  ipcMain.handle("sets:update", (_e, id, patch) => store.updateSet(id, patch));
   ipcMain.handle("income:get", () => store.getIncome());
   ipcMain.handle("income:set", (_e, income) => store.setIncome(income));
   ipcMain.handle("app:getPaths", () => ({
