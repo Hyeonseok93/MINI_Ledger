@@ -62,3 +62,9 @@ export function shiftYearMonth(ym: YearMonth, delta: number): YearMonth {
 }
 
 export const canShiftPrev = (ym: YearMonth) => ymKey(ym) > ymKey(INCOME_START);
+
+/** Months available for a ledger year (respects INCOME_START). */
+export function monthsInYear(year: number): number[] {
+  const first = year === INCOME_START.year ? INCOME_START.month : 1;
+  return MONTHS.filter((m) => m >= first);
+}

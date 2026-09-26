@@ -32,7 +32,7 @@ export function Overview(props: {
 
   const isCurrent =
     cursor.year === asOf.getFullYear() && cursor.month === asOf.getMonth() + 1;
-  const monthSpend = stats.occurrences.reduce((s, o) => s + o.item.amount, 0);
+  const monthSpend = stats.monthlyTotal;
   const earned = incomeFor(props.income, cursor.year, cursor.month);
   const byMonthCat = useMemo(() => categoryFromOccurrences(stats.occurrences), [stats.occurrences]);
 

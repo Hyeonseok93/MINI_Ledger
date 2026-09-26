@@ -79,4 +79,18 @@ describe("electron store", () => {
     expect(store.getAll()[0].name).toBe("새항목");
     expect(store.getIncome().base).toBe(2_000_000);
   });
+
+  it("removeSet drops exclusive items but keeps drafts", () => {
+    const a = store.upsert({ name: "A", amount: 10_000, cycle: "monthly", day: 1, category: "기타" });
+    const b = store.upsert({ name: "B", amount: 20_000, cycle: "monthly", day: 5, category: "기타" });
+    const draft = store.upsert({ name: "Draft", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+    const sets = store.saveSet("묶음", [a.id, b.id]);
+    store.saveSet("다른", [b.id]);
+
+    store.removeSet(sets[0].id);
+    const ids = store.getAll().map((it) => it.id);
+    expect(ids).toContain(b.id);
+    expect(ids).toContain(draft.id);
+    expect(ids).not.toContain(a.id);
+  });
 });

@@ -255,11 +255,13 @@ export function analyze(
     occurrencesInMonth(item, year, month0).map((day) => ({ item, day }))
   );
 
+  const monthlyTotal = occurrences.reduce((s, o) => s + o.item.amount, 0);
+
   return {
     today,
     daysInMonth: dim,
     count: monthItems.length,
-    monthlyTotal: monthItems.reduce((s, it) => s + perMonth(it), 0),
+    monthlyTotal,
     paidThisMonth: occurrences.filter((o) => o.day < today).reduce((s, o) => s + o.item.amount, 0),
     remainingThisMonth: occurrences.filter((o) => o.day >= today).reduce((s, o) => s + o.item.amount, 0),
     occurrences,

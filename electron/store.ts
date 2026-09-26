@@ -3,16 +3,15 @@ import path from "node:path";
 import crypto from "node:crypto";
 import type { Cycle, FixedItem, Income, ItemSet } from "../src/schedule";
 import {
-  CYCLE_VALUES,
   DEFAULT_SNAPSHOT,
   MONTH_KEY,
   type MutableLedger,
+  dropReleasedOrphans,
   migrateSnapshot,
   normalizeAssignments,
   normalizeIncome,
-  pruneOrphanItems,
+  normalizeItem,
   reapplySetMonths,
-  remapCategory,
   scrubAssignments,
   setNameTaken,
   toggleIdsInMonth,
@@ -60,25 +59,8 @@ export function getStoreDir() {
   return storeDir;
 }
 
-function clampInt(v: unknown, min: number, max: number, fallback: number) {
-  const n = Math.round(Number(v));
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, n));
-}
-
-function normalize(row: FixedItem): FixedItem {
-  return {
-    ...row,
-    cycle: CYCLE_VALUES.includes(row.cycle) ? row.cycle : "monthly",
-    day: clampInt(row.day, 1, 31, 1),
-    weekday: clampInt(row.weekday, 0, 6, 1),
-    month: clampInt(row.month, 1, 12, 1),
-    category: remapCategory(row.category),
-  };
-}
-
 export function getAll(): FixedItem[] {
-  return read().items.map(normalize);
+  return read().items.map(normalizeItem);
 }
 
 export function upsert(item: Draft): FixedItem {
@@ -101,7 +83,7 @@ export function upsert(item: Draft): FixedItem {
           active: true,
         };
 
-  const row = normalize({
+  const row = normalizeItem({
     ...prev,
     name: String(item.name ?? prev.name ?? "").trim(),
     amount: Number(item.amount ?? prev.amount) || 0,
@@ -109,8 +91,8 @@ export function upsert(item: Draft): FixedItem {
     day: Number(item.day ?? prev.day),
     weekday: Number(item.weekday ?? prev.weekday),
     month: Number(item.month ?? prev.month),
-    category: remapCategory(String(item.category ?? prev.category ?? "기타").trim() || "기타"),
-    note: String(item.note ?? prev.note ?? "").trim(),
+    category: String(item.category ?? prev.category ?? "기타"),
+    note: String(item.note ?? prev.note ?? ""),
     active: item.active !== undefined ? !!item.active : prev.active !== false,
   });
 
@@ -194,8 +176,10 @@ export function saveSet(name: string, itemIds?: string[]): ItemSet[] {
 
 export function removeSet(id: string): ItemSet[] {
   const data = read();
+  const victim = (data.sets || []).find((s) => s.id === id);
+  const released = [...(victim?.itemIds || [])];
   data.sets = (data.sets || []).filter((s) => s.id !== id);
-  pruneOrphanItems(data);
+  dropReleasedOrphans(data, released);
   write(data);
   return getSets();
 }
@@ -220,9 +204,12 @@ export function updateSet(id: string, patch: { name?: string; itemIds?: string[]
     if (!nextIds.length) throw new Error("no items");
     data.sets[idx].itemIds = nextIds;
     reapplySetMonths(data, oldIds, nextIds);
+    dropReleasedOrphans(
+      data,
+      oldIds.filter((itemId) => !nextIds.includes(itemId))
+    );
   }
 
-  pruneOrphanItems(data);
   write(data);
   return getSets();
 }

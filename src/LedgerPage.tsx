@@ -10,7 +10,7 @@ import {
   type FixedItem,
   type ItemSet,
 } from "./schedule";
-import { INCOME_START, MONTHS, num, pad2 } from "./format";
+import { INCOME_START, monthsInYear, num, pad2 } from "./format";
 import { type Form } from "./form";
 import { EntryForm } from "./ledger/EntryForm";
 import { useSetBench } from "./ledger/useSetBench";
@@ -58,8 +58,7 @@ export function Ledger(p: LedgerProps) {
     onSubmit: p.onSubmit,
   });
 
-  const firstMonth = assignYear === INCOME_START.year ? INCOME_START.month : 1;
-  const assignMonths = MONTHS.filter((m) => m >= firstMonth);
+  const assignMonths = monthsInYear(assignYear);
 
   const rows = useMemo(() => {
     const source = p.items.filter((it) => bench.workIds.includes(it.id));

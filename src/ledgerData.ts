@@ -88,19 +88,44 @@ export function scrubAssignments(assignments: Assignments, id: string): void {
   }
 }
 
-/** Drop items not referenced by any set (and scrub their month assignments). */
-export function pruneOrphanItems(data: Pick<MutableLedger, "items" | "sets" | "assignments">): void {
-  if (!(data.sets || []).length) return;
+/** Remove items that left every set among `releasedIds`. Unrelated drafts stay. */
+export function dropReleasedOrphans(
+  data: Pick<MutableLedger, "items" | "sets" | "assignments">,
+  releasedIds: string[]
+): void {
   const used = new Set<string>();
   for (const s of data.sets || []) {
     for (const id of s.itemIds || []) used.add(id);
   }
-  const kept: FixedItem[] = [];
-  for (const it of data.items) {
-    if (used.has(it.id)) kept.push(it);
-    else scrubAssignments(data.assignments, it.id);
-  }
-  data.items = kept;
+  const drop = new Set(releasedIds.map(String).filter((id) => id && !used.has(id)));
+  if (!drop.size) return;
+  data.items = data.items.filter((it) => {
+    if (!drop.has(it.id)) return true;
+    scrubAssignments(data.assignments, it.id);
+    return false;
+  });
+}
+
+function clampInt(v: unknown, min: number, max: number, fallback: number) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+/** Clamp cycle/day/category for persistence (store + browser mock). */
+export function normalizeItem(row: FixedItem): FixedItem {
+  return {
+    ...row,
+    name: String(row.name ?? "").trim(),
+    amount: Number(row.amount) || 0,
+    cycle: CYCLE_VALUES.includes(row.cycle) ? row.cycle : "monthly",
+    day: clampInt(row.day, 1, 31, 1),
+    weekday: clampInt(row.weekday, 0, 6, 1),
+    month: clampInt(row.month, 1, 12, 1),
+    category: remapCategory(row.category),
+    note: String(row.note ?? "").trim(),
+    active: row.active !== false,
+  };
 }
 
 export function monthsWhereFullyApplied(assignments: Assignments, itemIds: string[]): string[] {

@@ -103,18 +103,37 @@ function scrubAssignments(assignments, id) {
     if (!assignments[key].length) delete assignments[key];
   }
 }
-function pruneOrphanItems(data) {
-  if (!(data.sets || []).length) return;
+function dropReleasedOrphans(data, releasedIds) {
   const used = /* @__PURE__ */ new Set();
   for (const s of data.sets || []) {
     for (const id of s.itemIds || []) used.add(id);
   }
-  const kept = [];
-  for (const it of data.items) {
-    if (used.has(it.id)) kept.push(it);
-    else scrubAssignments(data.assignments, it.id);
-  }
-  data.items = kept;
+  const drop = new Set(releasedIds.map(String).filter((id) => id && !used.has(id)));
+  if (!drop.size) return;
+  data.items = data.items.filter((it) => {
+    if (!drop.has(it.id)) return true;
+    scrubAssignments(data.assignments, it.id);
+    return false;
+  });
+}
+function clampInt(v, min, max, fallback) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+function normalizeItem(row) {
+  return {
+    ...row,
+    name: String(row.name ?? "").trim(),
+    amount: Number(row.amount) || 0,
+    cycle: CYCLE_VALUES.includes(row.cycle) ? row.cycle : "monthly",
+    day: clampInt(row.day, 1, 31, 1),
+    weekday: clampInt(row.weekday, 0, 6, 1),
+    month: clampInt(row.month, 1, 12, 1),
+    category: remapCategory(row.category),
+    note: String(row.note ?? "").trim(),
+    active: row.active !== false
+  };
 }
 function monthsWhereFullyApplied(assignments, itemIds) {
   const ids = [...new Set((itemIds || []).map(String).filter(Boolean))];
@@ -224,23 +243,8 @@ function init(userData) {
 function getStoreDir() {
   return storeDir;
 }
-function clampInt(v, min, max, fallback) {
-  const n = Math.round(Number(v));
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, n));
-}
-function normalize(row) {
-  return {
-    ...row,
-    cycle: CYCLE_VALUES.includes(row.cycle) ? row.cycle : "monthly",
-    day: clampInt(row.day, 1, 31, 1),
-    weekday: clampInt(row.weekday, 0, 6, 1),
-    month: clampInt(row.month, 1, 12, 1),
-    category: remapCategory(row.category)
-  };
-}
 function getAll() {
-  return read().items.map(normalize);
+  return read().items.map(normalizeItem);
 }
 function upsert(item) {
   const data = read();
@@ -258,7 +262,7 @@ function upsert(item) {
     note: "",
     active: true
   };
-  const row = normalize({
+  const row = normalizeItem({
     ...prev,
     name: String(item.name ?? prev.name ?? "").trim(),
     amount: Number(item.amount ?? prev.amount) || 0,
@@ -266,8 +270,8 @@ function upsert(item) {
     day: Number(item.day ?? prev.day),
     weekday: Number(item.weekday ?? prev.weekday),
     month: Number(item.month ?? prev.month),
-    category: remapCategory(String(item.category ?? prev.category ?? "\uAE30\uD0C0").trim() || "\uAE30\uD0C0"),
-    note: String(item.note ?? prev.note ?? "").trim(),
+    category: String(item.category ?? prev.category ?? "\uAE30\uD0C0"),
+    note: String(item.note ?? prev.note ?? ""),
     active: item.active !== void 0 ? !!item.active : prev.active !== false
   });
   if (idx >= 0) data.items[idx] = row;
@@ -338,8 +342,10 @@ function saveSet(name, itemIds) {
 }
 function removeSet(id) {
   const data = read();
+  const victim = (data.sets || []).find((s) => s.id === id);
+  const released = [...victim?.itemIds || []];
   data.sets = (data.sets || []).filter((s) => s.id !== id);
-  pruneOrphanItems(data);
+  dropReleasedOrphans(data, released);
   write(data);
   return getSets();
 }
@@ -361,8 +367,11 @@ function updateSet(id, patch = {}) {
     if (!nextIds.length) throw new Error("no items");
     data.sets[idx].itemIds = nextIds;
     reapplySetMonths(data, oldIds, nextIds);
+    dropReleasedOrphans(
+      data,
+      oldIds.filter((itemId) => !nextIds.includes(itemId))
+    );
   }
-  pruneOrphanItems(data);
   write(data);
   return getSets();
 }

@@ -3,9 +3,11 @@ import { INCOME_START } from "./format";
 import { SAMPLE } from "./sampleData";
 import { isLedgerSnapshot, type LedgerSnapshot } from "./snapshot";
 import {
+  dropReleasedOrphans,
   migrateSnapshot,
   monthKeysThrough,
-  pruneOrphanItems,
+  normalizeIncome,
+  normalizeItem,
   reapplySetMonths,
   scrubAssignments,
   setNameTaken,
@@ -15,20 +17,22 @@ import {
 export function installDevMock() {
   if (window.ledger) return;
 
-  let items: FixedItem[] = SAMPLE.map((s, i) => ({
-    id: `mock-${i}`,
-    name: s.name,
-    amount: s.amount,
-    cycle: s.cycle,
-    day: s.day ?? 1,
-    weekday: s.weekday ?? 1,
-    month: s.month ?? 1,
-    category: s.category,
-    note: s.note ?? "",
-    active: true,
-  }));
+  let items: FixedItem[] = SAMPLE.map((s, i) =>
+    normalizeItem({
+      id: `mock-${i}`,
+      name: s.name,
+      amount: s.amount,
+      cycle: s.cycle,
+      day: s.day ?? 1,
+      weekday: s.weekday ?? 1,
+      month: s.month ?? 1,
+      category: s.category,
+      note: s.note ?? "",
+      active: true,
+    })
+  );
 
-  let income: Income = { base: 3_400_000, months: { "2026-12": 4_200_000 } };
+  let income: Income = normalizeIncome({ base: 3_400_000, months: { "2026-12": 4_200_000 } });
   let sets: ItemSet[] = [];
   let assignments: Assignments = Object.fromEntries(
     monthKeysThrough(new Date(), INCOME_START).map((k) => [k, items.map((it) => it.id)])
@@ -39,21 +43,21 @@ export function installDevMock() {
   const cloneSets = () => sets.map((s) => ({ ...s, itemIds: [...s.itemIds] }));
 
   window.ledger = {
-    getAll: async () => [...items],
+    getAll: async () => items.map(normalizeItem),
     upsert: async (draft) => {
       const prev = items.find((x) => x.id === draft.id);
-      const row = {
-        day: 1,
-        weekday: 1,
-        month: 1,
-        active: true,
-        note: "",
-        category: "기타",
-        cycle: "monthly" as const,
-        ...prev,
-        ...draft,
-      } as FixedItem;
-      if (!row.id) row.id = `mock-${Date.now()}`;
+      const row = normalizeItem({
+        id: draft.id || prev?.id || `mock-${Date.now()}`,
+        name: draft.name ?? prev?.name ?? "",
+        amount: draft.amount ?? prev?.amount ?? 0,
+        cycle: draft.cycle ?? prev?.cycle ?? "monthly",
+        day: draft.day ?? prev?.day ?? 1,
+        weekday: draft.weekday ?? prev?.weekday ?? 1,
+        month: draft.month ?? prev?.month ?? 1,
+        category: draft.category ?? prev?.category ?? "기타",
+        note: draft.note ?? prev?.note ?? "",
+        active: draft.active ?? prev?.active ?? true,
+      });
       items = [...items.filter((x) => x.id !== row.id), row];
       return row;
     },
@@ -87,9 +91,11 @@ export function installDevMock() {
       return cloneSets();
     },
     removeSet: async (id) => {
+      const victim = sets.find((s) => s.id === id);
+      const released = [...(victim?.itemIds ?? [])];
       sets = sets.filter((s) => s.id !== id);
       const data = state();
-      pruneOrphanItems(data);
+      dropReleasedOrphans(data, released);
       items = data.items;
       return cloneSets();
     },
@@ -111,17 +117,19 @@ export function installDevMock() {
         sets = sets.map((s, i) => (i === idx ? next : s));
         const data = state();
         reapplySetMonths(data, oldIds, next.itemIds);
+        dropReleasedOrphans(
+          data,
+          oldIds.filter((itemId) => !next.itemIds.includes(itemId))
+        );
+        items = data.items;
       } else {
         sets = sets.map((s, i) => (i === idx ? next : s));
       }
-      const data = state();
-      pruneOrphanItems(data);
-      items = data.items;
       return cloneSets();
     },
     getIncome: async () => income,
     setIncome: async (next) => {
-      income = { base: next.base, months: { ...next.months } };
+      income = normalizeIncome(next);
       return income;
     },
     getPaths: async () => ({ userData: "", storeDir: "browser-mock" }),
@@ -151,7 +159,7 @@ export function installDevMock() {
       const raw: unknown = JSON.parse(await file.text());
       if (!isLedgerSnapshot(raw)) throw new Error("invalid backup");
       const data = migrateSnapshot(raw);
-      items = data.items;
+      items = data.items.map(normalizeItem);
       assignments = data.assignments;
       sets = data.sets;
       income = data.income;

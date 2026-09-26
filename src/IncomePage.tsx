@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fixedInMonth, incomeFor, monthKey, type Assignments, type FixedItem, type Income } from "./schedule";
-import { INCOME_START, MONTHS, man, num, pad2, parseWon, won } from "./format";
+import { INCOME_START, man, monthsInYear, num, pad2, parseWon, won } from "./format";
 
 export function IncomePage(props: {
   items: FixedItem[];
@@ -18,14 +18,14 @@ export function IncomePage(props: {
 
   useEffect(() => setBaseDraft(income.base ? num(income.base) : ""), [income.base]);
 
-  const firstMonth = year === INCOME_START.year ? INCOME_START.month : 1;
-  const months = MONTHS.filter((m) => m >= firstMonth).map((m) => {
+  const months = monthsInYear(year).map((m) => {
     const key = monthKey(year, m);
     const earned = incomeFor(income, year, m);
     const fixed = fixedInMonth(props.items, year, m - 1, props.assignments);
     const current = year === now.getFullYear() && m === now.getMonth() + 1;
     return { m, key, earned, fixed, current, custom: key in income.months };
   });
+  const firstMonth = months[0]?.m ?? 1;
   const earnedTotal = months.reduce((s, x) => s + x.earned, 0);
   const fixedTotal = months.reduce((s, x) => s + x.fixed, 0);
   const left = earnedTotal - fixedTotal;
