@@ -438,8 +438,10 @@ select {
 .scale-track {
   position: relative;
   height: 112px;
+  min-height: 112px;
   margin: 0 6px;
   border-bottom: 1px solid var(--rule-2);
+  transition: height 0.18s ease;
 }
 
 .scale-past {

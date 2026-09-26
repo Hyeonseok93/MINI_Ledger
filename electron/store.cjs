@@ -318,6 +318,39 @@ function removeSet(id) {
   return getSets();
 }
 
+function monthsWhereFullyApplied(assignments, itemIds) {
+  const ids = [...new Set((itemIds || []).map(String).filter(Boolean))];
+  if (!ids.length) return [];
+  const keys = [];
+  for (const [key, list] of Object.entries(assignments || {})) {
+    if (!MONTH_KEY.test(key) || !Array.isArray(list)) continue;
+    const bucket = new Set(list);
+    if (ids.every((id) => bucket.has(id))) keys.push(key);
+  }
+  return keys;
+}
+
+/** Keep previously applied months in sync when a set's item list changes. */
+function reapplySetMonths(data, oldIds, newIds) {
+  const applied = monthsWhereFullyApplied(data.assignments, oldIds);
+  if (!applied.length) return;
+
+  const oldSet = new Set(oldIds);
+  const newSet = new Set(newIds);
+  const removed = [...oldSet].filter((id) => !newSet.has(id));
+
+  for (const key of applied) {
+    const bucket = new Set(data.assignments[key] ?? []);
+    for (const id of newIds) bucket.add(id);
+    for (const id of removed) {
+      const stillInSomeSet = (data.sets || []).some((s) => (s.itemIds || []).includes(id));
+      if (!stillInSomeSet) bucket.delete(id);
+    }
+    if (bucket.size) data.assignments[key] = [...bucket];
+    else delete data.assignments[key];
+  }
+}
+
 function updateSet(id, patch = {}) {
   const data = read();
   if (!Array.isArray(data.sets)) data.sets = [];
@@ -331,15 +364,18 @@ function updateSet(id, patch = {}) {
     data.sets[idx].name = label;
   }
 
-  if (Array.isArray(patch.itemIds)) {
+  if (Array.isArray(patch.itemIds) || patch.refreshItems) {
     const known = new Set(data.items.map((x) => x.id));
-    const nextIds = [...new Set(patch.itemIds.map(String).filter((x) => known.has(x)))];
+    const oldIds = [...(data.sets[idx].itemIds || [])];
+    let nextIds;
+    if (Array.isArray(patch.itemIds)) {
+      nextIds = [...new Set(patch.itemIds.map(String).filter((x) => known.has(x)))];
+    } else {
+      nextIds = data.items.filter((it) => it.active !== false).map((it) => it.id);
+    }
     if (!nextIds.length) throw new Error("no items");
     data.sets[idx].itemIds = nextIds;
-  } else if (patch.refreshItems) {
-    const nextIds = data.items.filter((it) => it.active !== false).map((it) => it.id);
-    if (!nextIds.length) throw new Error("no items");
-    data.sets[idx].itemIds = nextIds;
+    reapplySetMonths(data, oldIds, nextIds);
   }
 
   pruneOrphanItems(data);

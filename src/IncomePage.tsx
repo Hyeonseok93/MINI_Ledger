@@ -185,7 +185,7 @@ function FlowChart({ months }: { months: { m: number; key: string; earned: numbe
   const minLeft = Math.min(0, ...rows.map((r) => r.left));
   const bottom = minLeft < 0 ? -Math.ceil(-minLeft / (top / TICKS)) * (top / TICKS) : 0;
   const steps = Math.round((top - bottom) / (top / TICKS));
-  const ratioTop = niceMax(Math.max(10, ...rows.map((r) => r.ratio)), steps);
+  const ratioTop = 100;
 
   const x = (i: number) => ((i + 0.5) / rows.length) * 100;
   const y = (v: number) => ((top - v) / (top - bottom)) * 100;

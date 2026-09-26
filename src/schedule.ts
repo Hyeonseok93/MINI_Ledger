@@ -176,21 +176,32 @@ export function nextOccurrence(it: FixedItem, now = new Date(), assignments?: As
   return null;
 }
 
-/** End of Upcoming window: day 7 of the next calendar month. */
-export function upcomingWindowEnd(now = new Date()) {
-  return new Date(now.getFullYear(), now.getMonth() + 1, 7);
+/** Bounds for Upcoming relative to a viewed month: that month (from asOf if current) through day 7 of the next month. */
+export function upcomingWindowBounds(viewYear: number, viewMonth1: number, asOf = new Date()) {
+  const asOfDay = new Date(asOf.getFullYear(), asOf.getMonth(), asOf.getDate());
+  const monthStart = new Date(viewYear, viewMonth1 - 1, 1);
+  const monthEnd = new Date(viewYear, viewMonth1, 0);
+  const end = new Date(viewYear, viewMonth1, 7);
+
+  if (asOfDay > monthEnd) return { start: new Date(end.getTime() + 86_400_000), end };
+
+  const start = asOfDay < monthStart ? monthStart : asOfDay;
+  return { start, end };
 }
 
 export type UpcomingEntry = { item: FixedItem; date: Date; dday: number };
 
-/** Dues from today through day 7 of next month (assigned months only). */
+/** Dues in the viewed month (remaining if current) plus the first week of the following month. */
 export function upcomingInWindow(
   items: FixedItem[],
-  now = new Date(),
+  viewYear: number,
+  viewMonth1: number,
+  asOf = new Date(),
   assignments?: Assignments
 ): UpcomingEntry[] {
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = upcomingWindowEnd(now);
+  const { start, end } = upcomingWindowBounds(viewYear, viewMonth1, asOf);
+  if (start > end) return [];
+
   const out: UpcomingEntry[] = [];
   const cache = new Map<string, number[]>();
 
@@ -204,7 +215,7 @@ export function upcomingInWindow(
       const key = `${it.id}-${y}-${m0}`;
       if (!cache.has(key)) cache.set(key, occurrencesInMonth(it, y, m0));
       if (!cache.get(key)!.includes(day)) continue;
-      out.push({ item: it, date, dday: daysUntil(date, now) });
+      out.push({ item: it, date, dday: daysUntil(date, asOf) });
     }
   }
 

@@ -13,7 +13,7 @@ import {
   perYear,
   quarterMonths,
   upcomingInWindow,
-  upcomingWindowEnd,
+  upcomingWindowBounds,
   whenLabel,
   type FixedItem,
 } from "./schedule";
@@ -225,46 +225,60 @@ describe("analyze", () => {
 });
 
 describe("upcomingInWindow", () => {
-  it("ends on day 7 of next month", () => {
-    const end = upcomingWindowEnd(new Date(2026, 8, 26)); // Sep 26
+  it("ends on day 7 of the month after the viewed month", () => {
+    const { end } = upcomingWindowBounds(2026, 9, new Date(2026, 8, 26));
     expect(end.getFullYear()).toBe(2026);
     expect(end.getMonth()).toBe(9);
     expect(end.getDate()).toBe(7);
   });
 
   it("does not fake TODAY when next month is unassigned", () => {
-    const now = new Date(2026, 8, 26); // Sep 26
+    const asOf = new Date(2026, 8, 26);
     const items = [
       item({ id: "tel", cycle: "monthly", amount: 80_950, day: 15 }),
       item({ id: "ai", cycle: "monthly", amount: 30_065, day: 9 }),
     ];
-    const assignments = { "2026-09": ["tel", "ai"] }; // Oct not assigned
-    const rows = upcomingInWindow(items, now, assignments);
-    expect(rows).toEqual([]);
+    const assignments = { "2026-09": ["tel", "ai"] };
+    expect(upcomingInWindow(items, 2026, 9, asOf, assignments)).toEqual([]);
   });
 
-  it("includes today and next-month week when assigned", () => {
-    const now = new Date(2026, 8, 26); // Sep 26
+  it("includes rest of viewed month and next-month week when assigned", () => {
+    const asOf = new Date(2026, 8, 26);
     const items = [
       item({ id: "today", cycle: "monthly", amount: 10_000, day: 26 }),
       item({ id: "oct5", cycle: "monthly", amount: 20_000, day: 5 }),
-      item({ id: "oct8", cycle: "monthly", amount: 30_000, day: 8 }), // outside window
-      item({ id: "past", cycle: "monthly", amount: 40_000, day: 15 }), // already passed this month
+      item({ id: "oct8", cycle: "monthly", amount: 30_000, day: 8 }),
+      item({ id: "past", cycle: "monthly", amount: 40_000, day: 15 }),
     ];
     const assignments = {
       "2026-09": ["today", "past"],
       "2026-10": ["oct5", "oct8", "past"],
     };
-    const rows = upcomingInWindow(items, now, assignments);
+    const rows = upcomingInWindow(items, 2026, 9, asOf, assignments);
     expect(rows.map((r) => r.item.id)).toEqual(["today", "oct5"]);
     expect(rows[0].dday).toBe(0);
-    expect(rows[1].dday).toBe(9); // Sep 26 → Oct 5
+    expect(rows[1].dday).toBe(9);
   });
 
-  it("excludes days after next-month day 7", () => {
-    const now = new Date(2026, 8, 1);
+  it("when viewing next month, includes that full month through its following week", () => {
+    const asOf = new Date(2026, 8, 26); // still September today
+    const items = [
+      item({ id: "oct5", cycle: "monthly", day: 5 }),
+      item({ id: "oct15", cycle: "monthly", day: 15 }),
+      item({ id: "nov3", cycle: "monthly", day: 3 }),
+      item({ id: "nov10", cycle: "monthly", day: 10 }),
+    ];
+    const rows = upcomingInWindow(items, 2026, 10, asOf, {
+      "2026-10": ["oct5", "oct15"],
+      "2026-11": ["nov3", "nov10"],
+    });
+    expect(rows.map((r) => r.item.id)).toEqual(["oct5", "oct15", "nov3"]);
+  });
+
+  it("excludes days after next-month day 7 from the viewed month", () => {
+    const asOf = new Date(2026, 8, 1);
     const items = [item({ id: "oct7", cycle: "monthly", day: 7 }), item({ id: "oct8", cycle: "monthly", day: 8 })];
-    const rows = upcomingInWindow(items, now, {
+    const rows = upcomingInWindow(items, 2026, 9, asOf, {
       "2026-10": ["oct7", "oct8"],
     });
     expect(rows.map((r) => r.item.id)).toEqual(["oct7"]);

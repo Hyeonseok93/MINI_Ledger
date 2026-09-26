@@ -147,15 +147,33 @@ export function installDevMock() {
         }
         next.name = label;
       }
-      if (Array.isArray(patch.itemIds)) {
-        const known = new Set(items.map((it) => it.id));
-        next.itemIds = [...new Set(patch.itemIds.filter((x) => known.has(x)))];
+      if (Array.isArray(patch.itemIds) || patch.refreshItems) {
+        const oldIds = [...next.itemIds];
+        if (Array.isArray(patch.itemIds)) {
+          const known = new Set(items.map((it) => it.id));
+          next.itemIds = [...new Set(patch.itemIds.filter((x) => known.has(x)))];
+        } else {
+          next.itemIds = items.map((it) => it.id);
+        }
         if (!next.itemIds.length) throw new Error("no items");
-      } else if (patch.refreshItems) {
-        if (!items.length) throw new Error("no items");
-        next.itemIds = items.map((it) => it.id);
+        sets = sets.map((s, i) => (i === idx ? next : s));
+
+        const applied = Object.entries(assignments)
+          .filter(([, list]) => oldIds.length > 0 && oldIds.every((id) => list.includes(id)))
+          .map(([key]) => key);
+        const removed = oldIds.filter((id) => !next.itemIds.includes(id));
+        for (const key of applied) {
+          const bucket = new Set(assignments[key] ?? []);
+          for (const itemId of next.itemIds) bucket.add(itemId);
+          for (const itemId of removed) {
+            if (!sets.some((s) => s.itemIds.includes(itemId))) bucket.delete(itemId);
+          }
+          if (bucket.size) assignments[key] = [...bucket];
+          else delete assignments[key];
+        }
+      } else {
+        sets = sets.map((s, i) => (i === idx ? next : s));
       }
-      sets = sets.map((s, i) => (i === idx ? next : s));
       pruneOrphans();
       return cloneSets();
     },

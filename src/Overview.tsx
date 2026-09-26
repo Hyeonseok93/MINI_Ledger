@@ -128,7 +128,12 @@ export function Overview(props: {
               asOf={asOf}
               isCurrent={isCurrent}
             />
-            <Upcoming items={props.items} assignments={props.assignments} />
+            <Upcoming
+              items={props.items}
+              assignments={props.assignments}
+              cursor={cursor}
+              asOf={asOf}
+            />
           </section>
         </>
       )}
@@ -162,6 +167,8 @@ function MonthScale({ stats }: { stats: Analytics }) {
       stackAt.set(o.day, offset + size + 4);
       return { ...o, size, offset };
     });
+  const stackPeak = dots.reduce((m, d) => Math.max(m, d.offset + d.size), 0);
+  const trackHeight = Math.max(112, 14 + stackPeak + 16);
 
   return (
     <section className="scale">
@@ -176,7 +183,7 @@ function MonthScale({ stats }: { stats: Analytics }) {
         </div>
       </div>
 
-      <div className="scale-track">
+      <div className="scale-track" style={{ height: trackHeight }}>
         <div className="scale-past" style={{ width: `${pastWidth}%` }} />
         {DAYS.slice(0, days).map((d) => {
           const major = d === 1 || d % 5 === 0 || d === days;
@@ -248,17 +255,29 @@ function Categories({
   );
 }
 
-function Upcoming({ items, assignments }: { items: FixedItem[]; assignments: Assignments }) {
-  const all = upcomingInWindow(items, new Date(), assignments);
+function Upcoming({
+  items,
+  assignments,
+  cursor,
+  asOf,
+}: {
+  items: FixedItem[];
+  assignments: Assignments;
+  cursor: YearMonth;
+  asOf: Date;
+}) {
+  const all = upcomingInWindow(items, cursor.year, cursor.month, asOf, assignments);
 
   return (
     <div className="col">
       <div className="col-head">
-        <span className="mono-label">Upcoming · to next week</span>
+        <span className="mono-label">Upcoming · month + next week</span>
         <span className="mono-label dim">{all.length}</span>
       </div>
       <ul className="rows">
-        {all.length === 0 && <li className="row-empty">오늘부터 다음 달 첫 주까지 예정된 결제가 없습니다.</li>}
+        {all.length === 0 && (
+          <li className="row-empty">이 달 남은 결제와 다음 달 첫 주에 예정된 항목이 없습니다.</li>
+        )}
         {all.map(({ item, date, dday }) => (
           <li key={`${item.id}-${date.getTime()}`} className="row up">
             <span className={dday === 0 ? "row-d today" : "row-d"}>{dday === 0 ? "TODAY" : `D−${dday}`}</span>
