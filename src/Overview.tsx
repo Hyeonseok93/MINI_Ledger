@@ -46,6 +46,10 @@ export function Overview(props: {
   const earned = incomeFor(props.income, cursor.year, cursor.month);
   const byMonthCat = useMemo(() => categoryFromOccurrences(stats.occurrences), [stats.occurrences]);
 
+  const left = earned - monthSpend;
+  const fixedShare = earned > 0 ? Math.min(100, (monthSpend / Math.max(earned, monthSpend)) * 100) : 0;
+  const leftShare = earned > 0 && left > 0 ? (left / earned) * 100 : 0;
+
   return (
     <>
       <section className="hero">
@@ -70,36 +74,64 @@ export function Overview(props: {
           <span className="figure-cur">₩</span>
           <span className="figure-num">{num(monthSpend)}</span>
         </div>
-        <dl className="hero-meta">
-          {earned > 0 ? (
-            <>
+        <div className="hero-meta-row">
+          <dl className="hero-meta">
+            {earned > 0 ? (
+              <>
+                <div>
+                  <dt>수입 대비</dt>
+                  <dd>
+                    {Math.round((monthSpend / earned) * 100)}%
+                    <em className="meta-sub">₩{num(earned)}</em>
+                  </dd>
+                </div>
+                <div>
+                  <dt>남는 돈</dt>
+                  <dd className={left < 0 ? "neg" : "accent"}>{won(left)}</dd>
+                </div>
+              </>
+            ) : (
               <div>
                 <dt>수입 대비</dt>
                 <dd>
-                  {Math.round((monthSpend / earned) * 100)}%
-                  <em className="meta-sub">₩{num(earned)}</em>
+                  <button type="button" className="link" onClick={props.onIncome}>
+                    수입 설정 →
+                  </button>
                 </dd>
               </div>
-              <div>
-                <dt>남는 돈</dt>
-                <dd className={earned - monthSpend < 0 ? "neg" : "accent"}>{won(earned - monthSpend)}</dd>
-              </div>
-            </>
-          ) : (
+            )}
             <div>
-              <dt>수입 대비</dt>
-              <dd>
-                <button type="button" className="link" onClick={props.onIncome}>
-                  수입 설정 →
-                </button>
-              </dd>
+              <dt>활성 항목</dt>
+              <dd>{stats.count}건</dd>
+            </div>
+          </dl>
+
+          {earned > 0 && (
+            <div className="hero-split" aria-label="고정비와 남는 돈 비율">
+              <span className="mono-label">Fixed vs left</span>
+              <div className={left < 0 ? "hero-bar over" : "hero-bar"}>
+                <i
+                  className="seg fixed"
+                  style={{ width: `${fixedShare}%` }}
+                  title={`고정비 ₩${num(monthSpend)}`}
+                />
+                {left > 0 && (
+                  <i className="seg left" style={{ width: `${leftShare}%` }} title={`남는 돈 ₩${num(left)}`} />
+                )}
+              </div>
+              <div className="hero-bar-legend">
+                <span>
+                  <i className="sw fixed" />
+                  고정비 <b>₩{num(monthSpend)}</b>
+                </span>
+                <span>
+                  <i className={left < 0 ? "sw neg" : "sw left"} />
+                  남는 돈 <b className={left < 0 ? "neg" : undefined}>{won(left)}</b>
+                </span>
+              </div>
             </div>
           )}
-          <div>
-            <dt>활성 항목</dt>
-            <dd>{stats.count}건</dd>
-          </div>
-        </dl>
+        </div>
       </section>
 
       <MonthScale stats={stats} />
