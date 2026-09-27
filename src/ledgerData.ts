@@ -172,10 +172,12 @@ export function reapplySetMonths(
 
   for (const key of applied) {
     const bucket = new Set(data.assignments[key] ?? []);
-    for (const id of newIds) bucket.add(id);
+    // Decide keeps on the pre-add bucket so newly added ids cannot "complete"
+    // another set and falsely retain a removed shared member.
     for (const id of removed) {
       if (!keptByFullyAppliedSet(data.sets || [], bucket, id)) bucket.delete(id);
     }
+    for (const id of newIds) bucket.add(id);
     if (bucket.size) data.assignments[key] = [...bucket];
     else delete data.assignments[key];
   }

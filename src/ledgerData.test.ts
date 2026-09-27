@@ -76,6 +76,20 @@ describe("ledgerData", () => {
     expect(data.assignments["2026-09"]).toEqual(expect.arrayContaining(["a", "b"]));
   });
 
+  it("reapplySetMonths does not keep via a set only completed by newly added ids", () => {
+    const data = {
+      sets: [
+        { id: "s1", name: "A", itemIds: ["a", "c"], createdAt: "" },
+        { id: "s2", name: "B", itemIds: ["b", "c"], createdAt: "" },
+      ],
+      assignments: { "2026-09": ["a", "b"] },
+    };
+    // A [a,b]→[a,c]: adding c must not make B look fully applied and retain b.
+    reapplySetMonths(data, ["a", "b"], ["a", "c"]);
+    expect(data.assignments["2026-09"]).toEqual(expect.arrayContaining(["a", "c"]));
+    expect(data.assignments["2026-09"]).not.toContain("b");
+  });
+
   it("ensureOrphansInSet wraps set-less items into a default set", () => {
     const data = {
       items: [
