@@ -11,7 +11,7 @@ import {
   reapplySetMonths,
   scrubAssignments,
   setNameTaken,
-  toggleIdsInMonth,
+  toggleSetMonthIds,
 } from "./ledgerData";
 
 export function installDevMock() {
@@ -28,7 +28,6 @@ export function installDevMock() {
       month: s.month ?? 1,
       category: s.category,
       note: s.note ?? "",
-      active: true,
     })
   );
 
@@ -45,6 +44,7 @@ export function installDevMock() {
   window.ledger = {
     getAll: async () => items.map(normalizeItem),
     upsert: async (draft) => {
+      if (draft.id && !items.some((x) => x.id === draft.id)) throw new Error("not found");
       const prev = items.find((x) => x.id === draft.id);
       const row = normalizeItem({
         id: draft.id || prev?.id || `mock-${Date.now()}`,
@@ -56,7 +56,6 @@ export function installDevMock() {
         month: draft.month ?? prev?.month ?? 1,
         category: draft.category ?? prev?.category ?? "기타",
         note: draft.note ?? prev?.note ?? "",
-        active: draft.active ?? prev?.active ?? true,
       });
       items = [...items.filter((x) => x.id !== row.id), row];
       return row;
@@ -73,7 +72,7 @@ export function installDevMock() {
       if (!found) throw new Error("set not found");
       const ids = found.itemIds.filter((id) => items.some((it) => it.id === id));
       if (!ids.length) throw new Error("empty set");
-      toggleIdsInMonth(assignments, key, ids);
+      toggleSetMonthIds(assignments, sets, setId, key, ids);
       return cloneAssign();
     },
     getSets: async () => cloneSets(),

@@ -6,6 +6,7 @@ import {
   normalizeItem,
   reapplySetMonths,
   toggleIdsInMonth,
+  toggleSetMonthIds,
 } from "./ledgerData";
 import { INCOME_START } from "./format";
 import type { FixedItem } from "./schedule";
@@ -31,7 +32,6 @@ describe("ledgerData", () => {
           month: 1,
           category: "소프트웨어",
           note: "",
-          active: true,
         },
       ],
     });
@@ -69,7 +69,6 @@ describe("ledgerData", () => {
       month: 1,
       category: "기타",
       note: "",
-      active: true,
     };
     const a: FixedItem = { ...draft, id: "a", name: "A" };
     const b: FixedItem = { ...draft, id: "b", name: "B" };
@@ -84,6 +83,17 @@ describe("ledgerData", () => {
     expect(data.assignments["2026-09"]).not.toContain("a");
   });
 
+  it("toggleSetMonthIds keeps shared ids when another set stays fully applied", () => {
+    const assignments: Record<string, string[]> = { "2026-09": ["a", "b", "c"] };
+    const sets = [
+      { id: "s1", name: "A", itemIds: ["a", "b"], createdAt: "" },
+      { id: "s2", name: "B", itemIds: ["b", "c"], createdAt: "" },
+    ];
+    toggleSetMonthIds(assignments, sets, "s1", "2026-09", ["a", "b"]);
+    expect(assignments["2026-09"]).toEqual(expect.arrayContaining(["b", "c"]));
+    expect(assignments["2026-09"]).not.toContain("a");
+  });
+
   it("normalizeItem remaps category and clamps cycle", () => {
     const row = normalizeItem({
       id: "x",
@@ -95,7 +105,6 @@ describe("ledgerData", () => {
       month: 0,
       category: "소프트웨어",
       note: "  n  ",
-      active: true,
     });
     expect(row.name).toBe("x");
     expect(row.amount).toBe(0);

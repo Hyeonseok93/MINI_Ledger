@@ -7,7 +7,6 @@ import {
   fixedInMonth,
   incomeFor,
   monthKey,
-  nextOccurrence,
   occurrencesInMonth,
   perMonth,
   perYear,
@@ -29,7 +28,6 @@ function item(partial: Partial<FixedItem> & Pick<FixedItem, "cycle">): FixedItem
     month: partial.month ?? 1,
     category: partial.category ?? "구독",
     note: partial.note ?? "",
-    active: partial.active ?? true,
   };
 }
 
@@ -115,10 +113,9 @@ describe("whenLabel", () => {
 });
 
 describe("fixedInMonth", () => {
-  it("sums occurrence amounts and skips inactive", () => {
+  it("sums occurrence amounts", () => {
     const items = [
       item({ id: "a", cycle: "monthly", amount: 50_000, day: 1 }),
-      item({ id: "b", cycle: "monthly", amount: 20_000, day: 10, active: false }),
       item({ id: "c", cycle: "weekly", amount: 5_000, weekday: 1 }), // Sep 2026: 4 Mondays
     ];
     expect(fixedInMonth(items, 2026, 8)).toBe(50_000 + 5_000 * 4);
@@ -138,38 +135,11 @@ describe("assignments", () => {
   });
 });
 
-describe("nextOccurrence / daysUntil", () => {
-  it("returns today when due today", () => {
-    const now = new Date(2026, 8, 15); // Sep 15
-    const next = nextOccurrence(item({ cycle: "monthly", day: 15 }), now);
-    expect(next).not.toBeNull();
-    expect(next!.getFullYear()).toBe(2026);
-    expect(next!.getMonth()).toBe(8);
-    expect(next!.getDate()).toBe(15);
-    expect(daysUntil(next!, now)).toBe(0);
-  });
-
-  it("rolls to next month when day already passed", () => {
-    const now = new Date(2026, 8, 20);
-    const next = nextOccurrence(item({ cycle: "monthly", day: 10 }), now);
-    expect(next).not.toBeNull();
-    expect(next!.getMonth()).toBe(9);
-    expect(next!.getDate()).toBe(10);
-    expect(daysUntil(next!, now)).toBe(20);
-  });
-
-  it("finds next weekday for weekly", () => {
-    const now = new Date(2026, 8, 15); // Tue
-    const next = nextOccurrence(item({ cycle: "weekly", weekday: 1 }), now); // Mon
-    expect(next).not.toBeNull();
-    expect(next!.getDate()).toBe(21);
-    expect(daysUntil(next!, now)).toBe(6);
-  });
-
-  it("returns null when no assigned month has a due date", () => {
-    const now = new Date(2026, 8, 26);
-    const it = item({ id: "a", cycle: "monthly", day: 15 });
-    expect(nextOccurrence(it, now, { "2026-09": ["a"] })).toBeNull();
+describe("daysUntil", () => {
+  it("counts whole days from asOf", () => {
+    const now = new Date(2026, 8, 15);
+    expect(daysUntil(new Date(2026, 8, 15), now)).toBe(0);
+    expect(daysUntil(new Date(2026, 9, 10), now)).toBe(25);
   });
 });
 
@@ -179,20 +149,18 @@ describe("dueWithin", () => {
     const items = [
       item({ id: "a", cycle: "monthly", amount: 100_000, day: 15 }),
       item({ id: "b", cycle: "monthly", amount: 50_000, day: 30 }),
-      item({ id: "c", cycle: "monthly", amount: 10_000, day: 10, active: false }),
-    ];
+      ];
     expect(dueWithin(items, 7, now)).toEqual({ total: 100_000, count: 1 });
     expect(dueWithin(items, 20, now)).toEqual({ total: 150_000, count: 2 });
   });
 });
 
 describe("analyze", () => {
-  it("builds monthly analytics from active items", () => {
+  it("builds monthly analytics", () => {
     const now = new Date(2026, 8, 15); // Sep 15
     const items = [
       item({ id: "a", cycle: "monthly", amount: 100_000, day: 10, category: "주거" }),
       item({ id: "b", cycle: "monthly", amount: 30_000, day: 20, category: "구독" }),
-      item({ id: "c", cycle: "monthly", amount: 5_000, day: 1, category: "구독", active: false }),
     ];
     const a = analyze(items, now);
     expect(a.today).toBe(15);

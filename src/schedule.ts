@@ -10,7 +10,6 @@ export type FixedItem = {
   month: number;
   category: string;
   note: string;
-  active: boolean;
 };
 
 export type Income = {
@@ -37,16 +36,16 @@ export function isAssigned(assignments: Assignments, itemId: string, year: numbe
   return (assignments[monthKey(year, month1)] ?? []).includes(itemId);
 }
 
-/** undefined assignments = legacy (all active). empty object = nothing assigned. */
+/** undefined assignments = legacy (all items). empty object = nothing assigned. */
 export function itemsForMonth(
   items: FixedItem[],
   assignments: Assignments | undefined,
   year: number,
   month1: number
 ) {
-  if (assignments === undefined) return items.filter((it) => it.active);
+  if (assignments === undefined) return items;
   const ids = new Set(assignments[monthKey(year, month1)] ?? []);
-  return items.filter((it) => it.active && ids.has(it.id));
+  return items.filter((it) => ids.has(it.id));
 }
 
 export const CYCLES: { value: Cycle; label: string }[] = [
@@ -156,20 +155,6 @@ export function dueWithin(
     }
   }
   return { total, count };
-}
-
-export function nextOccurrence(it: FixedItem, now = new Date(), assignments?: Assignments): Date | null {
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  for (let i = 0; i <= 24; i++) {
-    const base = new Date(today.getFullYear(), today.getMonth() + i, 1);
-    const y = base.getFullYear();
-    const m0 = base.getMonth();
-    if (assignments && !isAssigned(assignments, it.id, y, m0 + 1)) continue;
-    const days = occurrencesInMonth(it, y, m0);
-    const hit = i === 0 ? days.find((d) => d >= today.getDate()) : days[0];
-    if (hit !== undefined) return new Date(y, m0, hit);
-  }
-  return null;
 }
 
 /** Bounds for Upcoming relative to a viewed month: that month (from asOf if current) through day 7 of the next month. */

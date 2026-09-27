@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import type { FixedItem, ItemSet } from "../schedule";
 
 type Args = {
@@ -25,6 +25,30 @@ export function useSetBench({ items, sets, onCancel, onRemove, onSaveSet, onUpda
   const selectedSet = sets.find((s) => s.id === selectedSetId) ?? null;
   const nameHint = setEditing ? editHint : setHint;
 
+  const workIdsRef = useRef(workIds);
+  const setsRef = useRef(sets);
+  const onRemoveRef = useRef(onRemove);
+  workIdsRef.current = workIds;
+  setsRef.current = sets;
+  onRemoveRef.current = onRemove;
+
+  /** Drop bench items that are not members of any saved set. */
+  async function discardDraftItems(ids: string[], setList: ItemSet[] = sets) {
+    const owned = new Set(setList.flatMap((s) => s.itemIds));
+    for (const id of ids) {
+      if (!owned.has(id)) await onRemoveRef.current(id);
+    }
+  }
+
+  // Leave Ledger tab / unmount → purge unsaved drafts so they don't linger in ledger.json
+  useEffect(() => {
+    return () => {
+      const owned = new Set(setsRef.current.flatMap((s) => s.itemIds));
+      const drafts = workIdsRef.current.filter((id) => !owned.has(id));
+      for (const id of drafts) void onRemoveRef.current(id);
+    };
+  }, []);
+
   const nameTaken = (name: string, excludeId?: string | null) => {
     const label = name.trim().toLowerCase();
     if (!label) return false;
@@ -38,13 +62,6 @@ export function useSetBench({ items, sets, onCancel, onRemove, onSaveSet, onUpda
     setEditHint("");
     setSetHint("");
     onCancel();
-  }
-
-  async function discardDraftItems(ids: string[]) {
-    const owned = new Set(sets.flatMap((s) => s.itemIds));
-    for (const id of ids) {
-      if (!owned.has(id)) await onRemove(id);
-    }
   }
 
   async function handleSaveSet(e: FormEvent) {
@@ -81,7 +98,9 @@ export function useSetBench({ items, sets, onCancel, onRemove, onSaveSet, onUpda
     setSelectedSetId(s.id);
   }
 
-  function cancelEditSet() {
+  async function cancelEditSet() {
+    const drafts = workIds.filter((id) => !sets.some((set) => set.itemIds.includes(id)));
+    if (drafts.length) await discardDraftItems(drafts);
     clearBench();
   }
 
@@ -121,7 +140,8 @@ export function useSetBench({ items, sets, onCancel, onRemove, onSaveSet, onUpda
 
   async function handleItemRemove(id: string) {
     setWorkIds((prev) => prev.filter((x) => x !== id));
-    if (setEditing) return;
+    // Even while editing: delete store rows that aren't in any saved set (new drafts).
+    // Members already in a set stay until commit (dropReleasedOrphans) or cancel (kept).
     const owned = sets.some((s) => s.itemIds.includes(id));
     if (!owned) await onRemove(id);
   }

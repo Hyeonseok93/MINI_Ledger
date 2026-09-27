@@ -68,7 +68,6 @@ describe("electron store", () => {
           month: 1,
           category: "구독",
           note: "",
-          active: true,
         },
       ],
       assignments: { "2026-09": ["x1"] },

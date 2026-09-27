@@ -1,6 +1,6 @@
 import { INCOME_START } from "./format";
 import type { Assignments, Cycle, FixedItem, Income, ItemSet } from "./schedule";
-import type { LedgerSnapshot } from "./snapshot";
+import { isLedgerSnapshot, type LedgerSnapshot } from "./snapshot";
 
 export const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -113,9 +113,9 @@ function clampInt(v: unknown, min: number, max: number, fallback: number) {
 }
 
 /** Clamp cycle/day/category for persistence (store + browser mock). */
-export function normalizeItem(row: FixedItem): FixedItem {
+export function normalizeItem(row: FixedItem & { active?: boolean }): FixedItem {
   return {
-    ...row,
+    id: String(row.id ?? ""),
     name: String(row.name ?? "").trim(),
     amount: Number(row.amount) || 0,
     cycle: CYCLE_VALUES.includes(row.cycle) ? row.cycle : "monthly",
@@ -124,7 +124,6 @@ export function normalizeItem(row: FixedItem): FixedItem {
     month: clampInt(row.month, 1, 12, 1),
     category: remapCategory(row.category),
     note: String(row.note ?? "").trim(),
-    active: row.active !== false,
   };
 }
 
@@ -175,6 +174,37 @@ export function toggleIdsInMonth(assignments: Assignments, monthKey: string, ids
   else delete assignments[monthKey];
 }
 
+/**
+ * Toggle a set onto/off a month. When turning off, keep an id if another fully-applied
+ * set on that month still needs it (shared membership / import edge case).
+ */
+export function toggleSetMonthIds(
+  assignments: Assignments,
+  sets: ItemSet[],
+  setId: string,
+  monthKey: string,
+  ids: string[]
+): void {
+  if (!MONTH_KEY.test(monthKey)) throw new Error("invalid month");
+  const current = new Set(assignments[monthKey] ?? []);
+  const allOn = ids.length > 0 && ids.every((id) => current.has(id));
+  if (allOn) {
+    for (const id of ids) {
+      const keptByOther = sets.some((s) => {
+        if (s.id === setId) return false;
+        const sIds = (s.itemIds || []).filter(Boolean);
+        if (!sIds.length || !sIds.includes(id)) return false;
+        return sIds.every((sid) => current.has(sid));
+      });
+      if (!keptByOther) current.delete(id);
+    }
+  } else {
+    ids.forEach((id) => current.add(id));
+  }
+  if (current.size) assignments[monthKey] = [...current];
+  else delete assignments[monthKey];
+}
+
 export function setNameTaken(sets: ItemSet[], name: string, excludeId?: string): boolean {
   const label = String(name || "").trim().toLowerCase();
   if (!label) return false;
@@ -185,43 +215,42 @@ export function setNameTaken(sets: ItemSet[], name: string, excludeId?: string):
 
 /**
  * Normalize/migrate a raw backup into a ledger document.
- * Throws if `items` is missing (same gate as isLedgerSnapshot).
+ * Throws if snapshot shape is invalid (same gate as isLedgerSnapshot).
  */
 export function migrateSnapshot(raw: unknown): MutableLedger {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("invalid backup");
-  const data = structuredClone(raw) as Record<string, unknown>;
-  if (!Array.isArray(data.items)) throw new Error("invalid backup");
+  if (!isLedgerSnapshot(raw)) throw new Error("invalid backup");
+  const data = structuredClone(raw) as LedgerSnapshot & Record<string, unknown>;
 
-  const hadAssignments = data.assignments && typeof data.assignments === "object";
-  data.assignments = normalizeAssignments(data.assignments);
+  const hadAssignments = data.assignments != null && typeof data.assignments === "object";
+  const assignments = normalizeAssignments(data.assignments);
 
-  const items = data.items as FixedItem[];
-  const assignments = data.assignments as Assignments;
+  const rawItems = Array.isArray(data.items) ? data.items : [];
 
   // v1 data: items existed without month assignment → seed through current month
-  if (!hadAssignments && items.length > 0 && Object.keys(assignments).length === 0) {
-    const ids = items.filter((it) => it.active !== false).map((it) => it.id).filter(Boolean);
+  if (!hadAssignments && rawItems.length > 0 && Object.keys(assignments).length === 0) {
+    const ids = rawItems.map((it) => String(it.id || "")).filter(Boolean);
     for (const key of monthKeysThrough()) assignments[key] = [...ids];
   }
 
-  let categoriesTouched = false;
-  for (const it of items) {
-    const next = remapCategory(it.category);
-    if (next !== it.category) {
-      it.category = next;
-      categoriesTouched = true;
-    }
-  }
-  if (categoriesTouched || Number(data.version) < 3) data.version = 3;
-
-  data.income = normalizeIncome(data.income);
-  if (!Array.isArray(data.sets)) data.sets = [];
+  const items = rawItems.map((it) =>
+    normalizeItem({
+      id: String(it.id || ""),
+      name: String(it.name ?? ""),
+      amount: Number(it.amount) || 0,
+      cycle: it.cycle,
+      day: Number(it.day) || 1,
+      weekday: Number(it.weekday) || 1,
+      month: Number(it.month) || 1,
+      category: it.category,
+      note: String(it.note ?? ""),
+    })
+  );
 
   return {
     version: Math.max(3, Number(data.version) || 3),
     items,
     assignments,
-    sets: data.sets as ItemSet[],
-    income: data.income as Income,
+    sets: Array.isArray(data.sets) ? data.sets : [],
+    income: normalizeIncome(data.income),
   };
 }

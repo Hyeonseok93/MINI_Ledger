@@ -10,7 +10,6 @@ function item(partial: Partial<FixedItem> & Pick<FixedItem, "id" | "category" | 
     weekday: 1,
     month: 1,
     note: "",
-    active: true,
     ...partial,
   };
 }
@@ -25,7 +24,6 @@ describe("categoryFromOccurrences", () => {
       { item: b, day: 5 },
     ];
     expect(categoryFromOccurrences(occurrences)).toEqual([{ category: "통신", amount: 30_000 }]);
-    // C exists in catalog but not in this month's occurrences
     void c;
   });
 });

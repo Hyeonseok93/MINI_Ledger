@@ -14,7 +14,7 @@ import {
   reapplySetMonths,
   scrubAssignments,
   setNameTaken,
-  toggleIdsInMonth,
+  toggleSetMonthIds,
 } from "../src/ledgerData";
 
 let storeDir = "";
@@ -80,7 +80,6 @@ export function upsert(item: Draft): FixedItem {
           month: 1,
           category: "기타",
           note: "",
-          active: true,
         };
 
   const row = normalizeItem({
@@ -93,7 +92,6 @@ export function upsert(item: Draft): FixedItem {
     month: Number(item.month ?? prev.month),
     category: String(item.category ?? prev.category ?? "기타"),
     note: String(item.note ?? prev.note ?? ""),
-    active: item.active !== undefined ? !!item.active : prev.active !== false,
   });
 
   if (idx >= 0) data.items[idx] = row;
@@ -162,7 +160,7 @@ export function saveSet(name: string, itemIds?: string[]): ItemSet[] {
   const known = new Set(data.items.map((x) => x.id));
   const ids = Array.isArray(itemIds)
     ? [...new Set(itemIds.map(String).filter((id) => known.has(id)))]
-    : data.items.filter((it) => it.active !== false).map((it) => it.id);
+    : data.items.map((it) => it.id);
   if (!ids.length) throw new Error("no items");
   data.sets.push({
     id: crypto.randomUUID(),
@@ -222,7 +220,7 @@ export function toggleSetMonth(setId: string, monthKey: string) {
   const ids = (set.itemIds || []).filter((id) => data.items.some((it) => it.id === id));
   if (!ids.length) throw new Error("empty set");
 
-  toggleIdsInMonth(data.assignments, monthKey, ids);
+  toggleSetMonthIds(data.assignments, data.sets || [], setId, monthKey, ids);
   write(data);
   return data.assignments;
 }

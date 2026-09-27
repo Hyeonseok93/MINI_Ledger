@@ -60,7 +60,6 @@ export default function App() {
         month: Number(form.month),
         category: form.category,
         note: form.note,
-        active: true,
       });
       setForm(emptyForm);
       setEditingId(null);

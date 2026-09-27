@@ -37,6 +37,19 @@ var DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 var MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 var INCOME_START = { year: 2026, month: 9 };
 
+// src/snapshot.ts
+function isLedgerSnapshot(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const o = raw;
+  if (!Array.isArray(o.items)) return false;
+  if (o.assignments !== void 0 && (typeof o.assignments !== "object" || Array.isArray(o.assignments))) {
+    return false;
+  }
+  if (o.sets !== void 0 && !Array.isArray(o.sets)) return false;
+  if (o.income !== void 0 && (typeof o.income !== "object" || Array.isArray(o.income))) return false;
+  return true;
+}
+
 // src/ledgerData.ts
 var MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
 var CYCLE_VALUES = ["daily", "weekly", "monthly", "quarterly", "yearly"];
@@ -123,7 +136,7 @@ function clampInt(v, min, max, fallback) {
 }
 function normalizeItem(row) {
   return {
-    ...row,
+    id: String(row.id ?? ""),
     name: String(row.name ?? "").trim(),
     amount: Number(row.amount) || 0,
     cycle: CYCLE_VALUES.includes(row.cycle) ? row.cycle : "monthly",
@@ -131,8 +144,7 @@ function normalizeItem(row) {
     weekday: clampInt(row.weekday, 0, 6, 1),
     month: clampInt(row.month, 1, 12, 1),
     category: remapCategory(row.category),
-    note: String(row.note ?? "").trim(),
-    active: row.active !== false
+    note: String(row.note ?? "").trim()
   };
 }
 function monthsWhereFullyApplied(assignments, itemIds) {
@@ -163,12 +175,23 @@ function reapplySetMonths(data, oldIds, newIds) {
     else delete data.assignments[key];
   }
 }
-function toggleIdsInMonth(assignments, monthKey, ids) {
+function toggleSetMonthIds(assignments, sets, setId, monthKey, ids) {
   if (!MONTH_KEY.test(monthKey)) throw new Error("invalid month");
   const current = new Set(assignments[monthKey] ?? []);
   const allOn = ids.length > 0 && ids.every((id) => current.has(id));
-  if (allOn) ids.forEach((id) => current.delete(id));
-  else ids.forEach((id) => current.add(id));
+  if (allOn) {
+    for (const id of ids) {
+      const keptByOther = sets.some((s) => {
+        if (s.id === setId) return false;
+        const sIds = (s.itemIds || []).filter(Boolean);
+        if (!sIds.length || !sIds.includes(id)) return false;
+        return sIds.every((sid) => current.has(sid));
+      });
+      if (!keptByOther) current.delete(id);
+    }
+  } else {
+    ids.forEach((id) => current.add(id));
+  }
   if (current.size) assignments[monthKey] = [...current];
   else delete assignments[monthKey];
 }
@@ -180,34 +203,34 @@ function setNameTaken(sets, name, excludeId) {
   );
 }
 function migrateSnapshot(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("invalid backup");
+  if (!isLedgerSnapshot(raw)) throw new Error("invalid backup");
   const data = structuredClone(raw);
-  if (!Array.isArray(data.items)) throw new Error("invalid backup");
-  const hadAssignments = data.assignments && typeof data.assignments === "object";
-  data.assignments = normalizeAssignments(data.assignments);
-  const items = data.items;
-  const assignments = data.assignments;
-  if (!hadAssignments && items.length > 0 && Object.keys(assignments).length === 0) {
-    const ids = items.filter((it) => it.active !== false).map((it) => it.id).filter(Boolean);
+  const hadAssignments = data.assignments != null && typeof data.assignments === "object";
+  const assignments = normalizeAssignments(data.assignments);
+  const rawItems = Array.isArray(data.items) ? data.items : [];
+  if (!hadAssignments && rawItems.length > 0 && Object.keys(assignments).length === 0) {
+    const ids = rawItems.map((it) => String(it.id || "")).filter(Boolean);
     for (const key of monthKeysThrough()) assignments[key] = [...ids];
   }
-  let categoriesTouched = false;
-  for (const it of items) {
-    const next = remapCategory(it.category);
-    if (next !== it.category) {
-      it.category = next;
-      categoriesTouched = true;
-    }
-  }
-  if (categoriesTouched || Number(data.version) < 3) data.version = 3;
-  data.income = normalizeIncome(data.income);
-  if (!Array.isArray(data.sets)) data.sets = [];
+  const items = rawItems.map(
+    (it) => normalizeItem({
+      id: String(it.id || ""),
+      name: String(it.name ?? ""),
+      amount: Number(it.amount) || 0,
+      cycle: it.cycle,
+      day: Number(it.day) || 1,
+      weekday: Number(it.weekday) || 1,
+      month: Number(it.month) || 1,
+      category: it.category,
+      note: String(it.note ?? "")
+    })
+  );
   return {
     version: Math.max(3, Number(data.version) || 3),
     items,
     assignments,
-    sets: data.sets,
-    income: data.income
+    sets: Array.isArray(data.sets) ? data.sets : [],
+    income: normalizeIncome(data.income)
   };
 }
 
@@ -259,8 +282,7 @@ function upsert(item) {
     weekday: 1,
     month: 1,
     category: "\uAE30\uD0C0",
-    note: "",
-    active: true
+    note: ""
   };
   const row = normalizeItem({
     ...prev,
@@ -271,8 +293,7 @@ function upsert(item) {
     weekday: Number(item.weekday ?? prev.weekday),
     month: Number(item.month ?? prev.month),
     category: String(item.category ?? prev.category ?? "\uAE30\uD0C0"),
-    note: String(item.note ?? prev.note ?? ""),
-    active: item.active !== void 0 ? !!item.active : prev.active !== false
+    note: String(item.note ?? prev.note ?? "")
   });
   if (idx >= 0) data.items[idx] = row;
   else data.items.push(row);
@@ -329,7 +350,7 @@ function saveSet(name, itemIds) {
   if (!Array.isArray(data.sets)) data.sets = [];
   if (setNameTaken(data.sets, label)) throw new Error("duplicate name");
   const known = new Set(data.items.map((x) => x.id));
-  const ids = Array.isArray(itemIds) ? [...new Set(itemIds.map(String).filter((id) => known.has(id)))] : data.items.filter((it) => it.active !== false).map((it) => it.id);
+  const ids = Array.isArray(itemIds) ? [...new Set(itemIds.map(String).filter((id) => known.has(id)))] : data.items.map((it) => it.id);
   if (!ids.length) throw new Error("no items");
   data.sets.push({
     id: import_node_crypto.default.randomUUID(),
@@ -382,7 +403,7 @@ function toggleSetMonth(setId, monthKey) {
   if (!set) throw new Error("set not found");
   const ids = (set.itemIds || []).filter((id) => data.items.some((it) => it.id === id));
   if (!ids.length) throw new Error("empty set");
-  toggleIdsInMonth(data.assignments, monthKey, ids);
+  toggleSetMonthIds(data.assignments, data.sets || [], setId, monthKey, ids);
   write(data);
   return data.assignments;
 }

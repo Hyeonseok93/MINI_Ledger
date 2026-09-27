@@ -203,7 +203,7 @@ export function Ledger(p: LedgerProps) {
             <button type="submit" className="btn primary">
               저장
             </button>
-            <button type="button" className="btn ghost" onClick={bench.cancelEditSet}>
+            <button type="button" className="btn ghost" onClick={() => void bench.cancelEditSet()}>
               취소
             </button>
           </form>
