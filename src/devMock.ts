@@ -4,6 +4,7 @@ import { SAMPLE } from "./sampleData";
 import { isLedgerSnapshot, type LedgerSnapshot } from "./snapshot";
 import {
   dropReleasedOrphans,
+  ensureOrphansInSet,
   migrateSnapshot,
   monthKeysThrough,
   normalizeIncome,
@@ -32,7 +33,14 @@ export function installDevMock() {
   );
 
   let income: Income = normalizeIncome({ base: 3_400_000, months: { "2026-12": 4_200_000 } });
-  let sets: ItemSet[] = [];
+  let sets: ItemSet[] = [
+    {
+      id: "set-sample",
+      name: "샘플",
+      itemIds: items.map((it) => it.id),
+      createdAt: new Date().toISOString(),
+    },
+  ];
   let assignments: Assignments = Object.fromEntries(
     monthKeysThrough(new Date(), INCOME_START).map((k) => [k, items.map((it) => it.id)])
   );
@@ -158,6 +166,7 @@ export function installDevMock() {
       const raw: unknown = JSON.parse(await file.text());
       if (!isLedgerSnapshot(raw)) throw new Error("invalid backup");
       const data = migrateSnapshot(raw);
+      ensureOrphansInSet(data);
       items = data.items.map(normalizeItem);
       assignments = data.assignments;
       sets = data.sets;

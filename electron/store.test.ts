@@ -77,6 +77,9 @@ describe("electron store", () => {
     expect(store.getAll()).toHaveLength(1);
     expect(store.getAll()[0].name).toBe("새항목");
     expect(store.getIncome().base).toBe(2_000_000);
+    expect(store.getSets()).toHaveLength(1);
+    expect(store.getSets()[0].name).toBe("기본");
+    expect(store.getSets()[0].itemIds).toEqual(["x1"]);
   });
 
   it("removeSet drops exclusive items but keeps drafts", () => {

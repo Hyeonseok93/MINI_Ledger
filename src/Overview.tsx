@@ -91,7 +91,7 @@ export function Overview(props: {
               </div>
             )}
             <div>
-              <dt>활성 항목</dt>
+              <dt>적용 항목</dt>
               <dd>{stats.count}건</dd>
             </div>
           </dl>

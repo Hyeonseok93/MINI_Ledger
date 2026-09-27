@@ -139,6 +139,24 @@ export function monthsWhereFullyApplied(assignments: Assignments, itemIds: strin
   return keys;
 }
 
+/**
+ * True when some set (optionally excluding one) includes `id` and is fully present in `bucket`.
+ * Shared by month toggle / set reapply so shared membership does not leave stray assignments.
+ */
+export function keptByFullyAppliedSet(
+  sets: ItemSet[],
+  bucket: Set<string>,
+  id: string,
+  excludeSetId?: string
+): boolean {
+  return (sets || []).some((s) => {
+    if (excludeSetId && s.id === excludeSetId) return false;
+    const sIds = (s.itemIds || []).filter(Boolean);
+    if (!sIds.length || !sIds.includes(id)) return false;
+    return sIds.every((sid) => bucket.has(sid));
+  });
+}
+
 /** Keep previously applied months in sync when a set's item list changes. */
 export function reapplySetMonths(
   data: Pick<MutableLedger, "sets" | "assignments">,
@@ -156,8 +174,7 @@ export function reapplySetMonths(
     const bucket = new Set(data.assignments[key] ?? []);
     for (const id of newIds) bucket.add(id);
     for (const id of removed) {
-      const stillInSomeSet = (data.sets || []).some((s) => (s.itemIds || []).includes(id));
-      if (!stillInSomeSet) bucket.delete(id);
+      if (!keptByFullyAppliedSet(data.sets || [], bucket, id)) bucket.delete(id);
     }
     if (bucket.size) data.assignments[key] = [...bucket];
     else delete data.assignments[key];
@@ -190,19 +207,39 @@ export function toggleSetMonthIds(
   const allOn = ids.length > 0 && ids.every((id) => current.has(id));
   if (allOn) {
     for (const id of ids) {
-      const keptByOther = sets.some((s) => {
-        if (s.id === setId) return false;
-        const sIds = (s.itemIds || []).filter(Boolean);
-        if (!sIds.length || !sIds.includes(id)) return false;
-        return sIds.every((sid) => current.has(sid));
-      });
-      if (!keptByOther) current.delete(id);
+      if (!keptByFullyAppliedSet(sets, current, id, setId)) current.delete(id);
     }
   } else {
     ids.forEach((id) => current.add(id));
   }
   if (current.size) assignments[monthKey] = [...current];
   else delete assignments[monthKey];
+}
+
+/**
+ * Items must live in a set to be editable on the Ledger bench.
+ * Wrap any set-less ids into a new set (import / crash drafts / legacy).
+ */
+export function ensureOrphansInSet(data: Pick<MutableLedger, "items" | "sets">): void {
+  if (!Array.isArray(data.sets)) data.sets = [];
+  const used = new Set(data.sets.flatMap((s) => s.itemIds || []));
+  const orphans = data.items.map((it) => it.id).filter((id) => id && !used.has(id));
+  if (!orphans.length) return;
+
+  const base = data.sets.length === 0 ? "기본" : "미저장";
+  let name = base;
+  if (setNameTaken(data.sets, name)) {
+    let n = 2;
+    while (setNameTaken(data.sets, `${base} ${n}`)) n += 1;
+    name = `${base} ${n}`;
+  }
+
+  data.sets.push({
+    id: crypto.randomUUID(),
+    name,
+    itemIds: orphans,
+    createdAt: new Date().toISOString(),
+  });
 }
 
 export function setNameTaken(sets: ItemSet[], name: string, excludeId?: string): boolean {

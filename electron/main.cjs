@@ -158,6 +158,14 @@ function monthsWhereFullyApplied(assignments, itemIds) {
   }
   return keys;
 }
+function keptByFullyAppliedSet(sets, bucket, id, excludeSetId) {
+  return (sets || []).some((s) => {
+    if (excludeSetId && s.id === excludeSetId) return false;
+    const sIds = (s.itemIds || []).filter(Boolean);
+    if (!sIds.length || !sIds.includes(id)) return false;
+    return sIds.every((sid) => bucket.has(sid));
+  });
+}
 function reapplySetMonths(data, oldIds, newIds) {
   const applied = monthsWhereFullyApplied(data.assignments, oldIds);
   if (!applied.length) return;
@@ -168,8 +176,7 @@ function reapplySetMonths(data, oldIds, newIds) {
     const bucket = new Set(data.assignments[key] ?? []);
     for (const id of newIds) bucket.add(id);
     for (const id of removed) {
-      const stillInSomeSet = (data.sets || []).some((s) => (s.itemIds || []).includes(id));
-      if (!stillInSomeSet) bucket.delete(id);
+      if (!keptByFullyAppliedSet(data.sets || [], bucket, id)) bucket.delete(id);
     }
     if (bucket.size) data.assignments[key] = [...bucket];
     else delete data.assignments[key];
@@ -181,19 +188,32 @@ function toggleSetMonthIds(assignments, sets, setId, monthKey, ids) {
   const allOn = ids.length > 0 && ids.every((id) => current.has(id));
   if (allOn) {
     for (const id of ids) {
-      const keptByOther = sets.some((s) => {
-        if (s.id === setId) return false;
-        const sIds = (s.itemIds || []).filter(Boolean);
-        if (!sIds.length || !sIds.includes(id)) return false;
-        return sIds.every((sid) => current.has(sid));
-      });
-      if (!keptByOther) current.delete(id);
+      if (!keptByFullyAppliedSet(sets, current, id, setId)) current.delete(id);
     }
   } else {
     ids.forEach((id) => current.add(id));
   }
   if (current.size) assignments[monthKey] = [...current];
   else delete assignments[monthKey];
+}
+function ensureOrphansInSet(data) {
+  if (!Array.isArray(data.sets)) data.sets = [];
+  const used = new Set(data.sets.flatMap((s) => s.itemIds || []));
+  const orphans = data.items.map((it) => it.id).filter((id) => id && !used.has(id));
+  if (!orphans.length) return;
+  const base = data.sets.length === 0 ? "\uAE30\uBCF8" : "\uBBF8\uC800\uC7A5";
+  let name = base;
+  if (setNameTaken(data.sets, name)) {
+    let n = 2;
+    while (setNameTaken(data.sets, `${base} ${n}`)) n += 1;
+    name = `${base} ${n}`;
+  }
+  data.sets.push({
+    id: crypto.randomUUID(),
+    name,
+    itemIds: orphans,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  });
 }
 function setNameTaken(sets, name, excludeId) {
   const label = String(name || "").trim().toLowerCase();
@@ -261,7 +281,9 @@ function init(userData) {
   storeDir = import_node_path.default.join(userData, "store");
   filePath = import_node_path.default.join(storeDir, "ledger.json");
   ensure();
-  write(read());
+  const data = read();
+  ensureOrphansInSet(data);
+  write(data);
 }
 function getStoreDir() {
   return storeDir;
@@ -411,7 +433,9 @@ function exportSnapshot() {
   return read();
 }
 function importSnapshot(raw) {
-  write(migrateSnapshot(raw));
+  const data = migrateSnapshot(raw);
+  ensureOrphansInSet(data);
+  write(data);
   return true;
 }
 

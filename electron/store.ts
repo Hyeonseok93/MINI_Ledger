@@ -7,6 +7,7 @@ import {
   MONTH_KEY,
   type MutableLedger,
   dropReleasedOrphans,
+  ensureOrphansInSet,
   migrateSnapshot,
   normalizeAssignments,
   normalizeIncome,
@@ -52,7 +53,9 @@ export function init(userData: string) {
   storeDir = path.join(userData, "store");
   filePath = path.join(storeDir, "ledger.json");
   ensure();
-  write(read());
+  const data = read();
+  ensureOrphansInSet(data);
+  write(data);
 }
 
 export function getStoreDir() {
@@ -230,6 +233,8 @@ export function exportSnapshot(): MutableLedger {
 }
 
 export function importSnapshot(raw: unknown) {
-  write(migrateSnapshot(raw));
+  const data = migrateSnapshot(raw);
+  ensureOrphansInSet(data);
+  write(data);
   return true;
 }

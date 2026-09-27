@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dropReleasedOrphans,
+  ensureOrphansInSet,
   migrateSnapshot,
   monthKeysThrough,
   normalizeItem,
@@ -48,6 +49,54 @@ describe("ledgerData", () => {
     reapplySetMonths(data, ["a", "b"], ["a", "c"]);
     expect(data.assignments["2026-09"]).toEqual(expect.arrayContaining(["a", "c"]));
     expect(data.assignments["2026-09"]).not.toContain("b");
+  });
+
+  it("reapplySetMonths drops ids only listed in a not-fully-applied set", () => {
+    const data = {
+      sets: [
+        { id: "s1", name: "A", itemIds: ["a"], createdAt: "" },
+        { id: "s2", name: "B", itemIds: ["b", "c"], createdAt: "" },
+      ],
+      assignments: { "2026-09": ["a", "b"] },
+    };
+    // A was [a,b]; edit drops b. B lists b but is not fully applied (c missing).
+    reapplySetMonths(data, ["a", "b"], ["a"]);
+    expect(data.assignments["2026-09"]).toEqual(["a"]);
+  });
+
+  it("reapplySetMonths keeps ids still required by another fully-applied set", () => {
+    const data = {
+      sets: [
+        { id: "s1", name: "A", itemIds: ["a"], createdAt: "" },
+        { id: "s2", name: "B", itemIds: ["b"], createdAt: "" },
+      ],
+      assignments: { "2026-09": ["a", "b"] },
+    };
+    reapplySetMonths(data, ["a", "b"], ["a"]);
+    expect(data.assignments["2026-09"]).toEqual(expect.arrayContaining(["a", "b"]));
+  });
+
+  it("ensureOrphansInSet wraps set-less items into a default set", () => {
+    const data = {
+      items: [
+        {
+          id: "a",
+          name: "X",
+          amount: 1,
+          cycle: "monthly" as const,
+          day: 1,
+          weekday: 1,
+          month: 1,
+          category: "기타",
+          note: "",
+        },
+      ],
+      sets: [] as { id: string; name: string; itemIds: string[]; createdAt: string }[],
+    };
+    ensureOrphansInSet(data);
+    expect(data.sets).toHaveLength(1);
+    expect(data.sets[0].name).toBe("기본");
+    expect(data.sets[0].itemIds).toEqual(["a"]);
   });
 
   it("toggleIdsInMonth flips membership", () => {
