@@ -113,7 +113,7 @@ function clampInt(v: unknown, min: number, max: number, fallback: number) {
 }
 
 /** Clamp cycle/day/category for persistence (store + browser mock). */
-export function normalizeItem(row: FixedItem & { active?: boolean }): FixedItem {
+export function normalizeItem(row: FixedItem): FixedItem {
   return {
     id: String(row.id ?? ""),
     name: String(row.name ?? "").trim(),
@@ -181,16 +181,6 @@ export function reapplySetMonths(
     if (bucket.size) data.assignments[key] = [...bucket];
     else delete data.assignments[key];
   }
-}
-
-export function toggleIdsInMonth(assignments: Assignments, monthKey: string, ids: string[]): void {
-  if (!MONTH_KEY.test(monthKey)) throw new Error("invalid month");
-  const current = new Set(assignments[monthKey] ?? []);
-  const allOn = ids.length > 0 && ids.every((id) => current.has(id));
-  if (allOn) ids.forEach((id) => current.delete(id));
-  else ids.forEach((id) => current.add(id));
-  if (current.size) assignments[monthKey] = [...current];
-  else delete assignments[monthKey];
 }
 
 /**

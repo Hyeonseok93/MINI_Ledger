@@ -6,7 +6,6 @@ import {
   monthKeysThrough,
   normalizeItem,
   reapplySetMonths,
-  toggleIdsInMonth,
   toggleSetMonthIds,
 } from "./ledgerData";
 import { INCOME_START } from "./format";
@@ -111,14 +110,6 @@ describe("ledgerData", () => {
     expect(data.sets).toHaveLength(1);
     expect(data.sets[0].name).toBe("기본");
     expect(data.sets[0].itemIds).toEqual(["a"]);
-  });
-
-  it("toggleIdsInMonth flips membership", () => {
-    const assignments: Record<string, string[]> = {};
-    toggleIdsInMonth(assignments, "2026-10", ["a", "b"]);
-    expect(assignments["2026-10"]).toEqual(["a", "b"]);
-    toggleIdsInMonth(assignments, "2026-10", ["a", "b"]);
-    expect(assignments["2026-10"]).toBeUndefined();
   });
 
   it("dropReleasedOrphans only removes exclusive released ids", () => {
