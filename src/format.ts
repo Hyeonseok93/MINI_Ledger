@@ -25,6 +25,7 @@ export const CATEGORIES = [
   "회비",
   "경조사",
   "기부",
+  "헌금",
   "기타",
 ];
 
