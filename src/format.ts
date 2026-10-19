@@ -35,7 +35,7 @@ export const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 export const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 export const NOTE_MAX = 30;
-export const INCOME_START = { year: 2026, month: 9 };
+export const INCOME_START = { year: 2026, month: 10 };
 
 export type YearMonth = { year: number; month: number };
 
