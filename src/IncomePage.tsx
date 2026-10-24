@@ -22,12 +22,12 @@ export function IncomePage(props: {
   const months = monthsInYear(year).map((m) => {
     const key = monthKey(year, m);
     const earned = incomeFor(income, year, m);
-    const { spend: fixed, save, give } = bucketsInMonth(props.items, year, m - 1, props.assignments);
+    const { spend: fixed, save } = bucketsInMonth(props.items, year, m - 1, props.assignments);
     const current = year === now.getFullYear() && m === now.getMonth() + 1;
     // No set applied yet → fixed cost is unknown, not ₩0.
     const applied = (props.assignments[key] ?? []).some((id) => itemIds.has(id));
-    const left = earned - fixed - save - give;
-    return { m, key, earned, fixed, save, give, left, current, applied, custom: key in income.months };
+    const left = earned - fixed - save;
+    return { m, key, earned, fixed, save, left, current, applied, custom: key in income.months };
   });
   // Totals cover applied months only, so unknown months don't inflate 남는 돈.
   const counted = months.filter((x) => x.applied);
@@ -36,7 +36,6 @@ export function IncomePage(props: {
   const earnedTotal = sum((x) => x.earned);
   const fixedTotal = sum((x) => x.fixed);
   const saveTotal = sum((x) => x.save);
-  const giveTotal = sum((x) => x.give);
   const left = sum((x) => x.left);
   const span =
     counted.length === months.length && months.length < 12
@@ -111,8 +110,8 @@ export function IncomePage(props: {
         className={months.length < 12 ? "months partial" : "months"}
         style={months.length < 12 ? { gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` } : undefined}
       >
-        {months.map(({ m, key, earned, fixed, save, give, current, applied, custom }) => {
-          const out = fixed + save + give;
+        {months.map(({ m, key, earned, fixed, save, current, applied, custom }) => {
+          const out = fixed + save;
           const scale = Math.max(earned, out, 1);
           const ratio = applied && earned > 0 ? fixed / earned : 0;
           return (
@@ -154,7 +153,6 @@ export function IncomePage(props: {
                     [
                       { k: "fixed", v: fixed },
                       { k: "save", v: save },
-                      { k: "give", v: give },
                     ] as const
                   ).map(({ k, v }) => <i key={k} className={`seg-${k}`} style={{ width: `${(v / scale) * 100}%` }} />)}
               </div>
@@ -164,7 +162,6 @@ export function IncomePage(props: {
                     <span>
                       지출 ₩{num(fixed)}
                       {save > 0 && <em className="b-save">저축 ₩{num(save)}</em>}
-                      {give > 0 && <em className="b-give">나눔 ₩{num(give)}</em>}
                     </span>
                     <span>{earned > 0 ? `${Math.round(ratio * 100)}%` : "—"}</span>
                   </>
@@ -192,10 +189,6 @@ export function IncomePage(props: {
           </dd>
         </div>
         <div>
-          <dt>남는 돈</dt>
-          <dd className={left < 0 ? "neg" : "accent"}>{won(left)}</dd>
-        </div>
-        <div>
           <dt>{BUCKET_LABEL.save}</dt>
           <dd className="b-save">
             ₩{num(saveTotal)}
@@ -203,18 +196,8 @@ export function IncomePage(props: {
           </dd>
         </div>
         <div>
-          <dt>{BUCKET_LABEL.give}</dt>
-          <dd className="b-give">
-            ₩{num(giveTotal)}
-            <em>{pct(giveTotal, earnedTotal)}</em>
-          </dd>
-        </div>
-        <div>
-          <dt>나가는 돈 합계</dt>
-          <dd>
-            ₩{num(fixedTotal + saveTotal + giveTotal)}
-            <em>{pct(fixedTotal + saveTotal + giveTotal, earnedTotal)}</em>
-          </dd>
+          <dt>남는 돈</dt>
+          <dd className={left < 0 ? "neg" : "accent"}>{won(left)}</dd>
         </div>
       </dl>
 
@@ -248,7 +231,6 @@ function FlowChart({
     earned: number;
     fixed: number;
     save: number;
-    give: number;
     left: number;
     applied: boolean;
   }[];
@@ -344,11 +326,6 @@ function FlowChart({
                     {r.save > 0 && (
                       <span>
                         {BUCKET_LABEL.save} <b className="b-save">₩{num(r.save)}</b>
-                      </span>
-                    )}
-                    {r.give > 0 && (
-                      <span>
-                        {BUCKET_LABEL.give} <b className="b-give">₩{num(r.give)}</b>
                       </span>
                     )}
                     <span>

@@ -84,7 +84,7 @@ export function Ledger(p: LedgerProps) {
 
   /** Monthly-equivalent amount of the selected set, per bucket. */
   const setBuckets = useMemo(() => {
-    const totals = { spend: 0, save: 0, give: 0 };
+    const totals = { spend: 0, save: 0 };
     for (const it of selectedSetItems) totals[bucketOf(it.category)] += perMonth(it);
     return totals;
   }, [selectedSetItems]);

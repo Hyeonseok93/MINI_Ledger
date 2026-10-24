@@ -54,12 +54,17 @@ var CATEGORY_GROUPS = {
     "\uCDE8\uBBF8",
     "\uBC18\uB824\uB3D9\uBB3C",
     "\uC721\uC544",
-    "\uD68C\uBE44"
+    "\uD68C\uBE44",
+    "\uD5CC\uAE08",
+    "\uAE30\uBD80",
+    "\uACBD\uC870\uC0AC",
+    "\uAC00\uC871 \uC6A9\uB3C8",
+    "\uC1A1\uAE08",
+    "\uAE30\uD0C0"
   ],
-  save: ["\uC800\uCD95", "\uD22C\uC790", "\uC5F0\uAE08", "\uCCAD\uC57D"],
-  give: ["\uD5CC\uAE08", "\uAE30\uBD80", "\uACBD\uC870\uC0AC", "\uAC00\uC871 \uC6A9\uB3C8", "\uC1A1\uAE08"]
+  save: ["\uC800\uCD95", "\uD22C\uC790", "\uC5F0\uAE08", "\uCCAD\uC57D"]
 };
-var CATEGORIES = [...CATEGORY_GROUPS.spend, ...CATEGORY_GROUPS.save, ...CATEGORY_GROUPS.give, "\uAE30\uD0C0"];
+var CATEGORIES = [...CATEGORY_GROUPS.spend, ...CATEGORY_GROUPS.save];
 var DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 var MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 var INCOME_START = { year: 2026, month: 10 };

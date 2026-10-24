@@ -136,7 +136,7 @@ export const fixedInMonth = (
 export type BucketTotals = Record<Bucket, number>;
 
 export function bucketTotals(occurrences: Occurrence[]): BucketTotals {
-  const totals: BucketTotals = { spend: 0, save: 0, give: 0 };
+  const totals: BucketTotals = { spend: 0, save: 0 };
   for (const o of occurrences) totals[bucketOf(o.item.category)] += o.item.amount;
   return totals;
 }

@@ -1,8 +1,8 @@
-/** Where the money goes: spent (incl. loan repayments), kept (savings/investments), or given away. */
-export type Bucket = "spend" | "save" | "give";
+/** Where the money goes: spent (incl. loans and giving) or kept (savings/investments). */
+export type Bucket = "spend" | "save";
 
-export const BUCKETS: Bucket[] = ["spend", "save", "give"];
-export const BUCKET_LABEL: Record<Bucket, string> = { spend: "고정 지출", save: "저축·투자", give: "나눔·가족" };
+export const BUCKETS: Bucket[] = ["spend", "save"];
+export const BUCKET_LABEL: Record<Bucket, string> = { spend: "고정 지출", save: "저축·투자" };
 
 export const CATEGORY_GROUPS: Record<Bucket, string[]> = {
   spend: [
@@ -26,19 +26,22 @@ export const CATEGORY_GROUPS: Record<Bucket, string[]> = {
     "반려동물",
     "육아",
     "회비",
+    "헌금",
+    "기부",
+    "경조사",
+    "가족 용돈",
+    "송금",
+    "기타",
   ],
   save: ["저축", "투자", "연금", "청약"],
-  give: ["헌금", "기부", "경조사", "가족 용돈", "송금"],
 };
 
-/** Dropdown order: grouped by bucket, 기타 (a spend category) last. */
-export const CATEGORIES = [...CATEGORY_GROUPS.spend, ...CATEGORY_GROUPS.save, ...CATEGORY_GROUPS.give, "기타"];
+/** Dropdown order: spending (even count, so savings starts a fresh row in the 2-column list), then savings. */
+export const CATEGORIES = [...CATEGORY_GROUPS.spend, ...CATEGORY_GROUPS.save];
 
 /** Unknown or legacy categories count as spending. */
 export function bucketOf(category: string): Bucket {
-  if (CATEGORY_GROUPS.save.includes(category)) return "save";
-  if (CATEGORY_GROUPS.give.includes(category)) return "give";
-  return "spend";
+  return CATEGORY_GROUPS.save.includes(category) ? "save" : "spend";
 }
 
 export const SHADES = [1, 0.7, 0.5, 0.36, 0.26, 0.18, 0.12];

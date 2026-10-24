@@ -34,8 +34,8 @@ export function Overview(props: {
 
   const isCurrent =
     cursor.year === asOf.getFullYear() && cursor.month === asOf.getMonth() + 1;
-  // The hero figure is spending only; savings and giving are shown beside it, and 남는 돈 subtracts all three.
-  const { spend: monthSpend, save, give } = stats.buckets;
+  // The hero figure is spending only; savings are shown beside it, and 남는 돈 subtracts both.
+  const { spend: monthSpend, save } = stats.buckets;
   const outflow = stats.monthlyTotal;
   const earned = incomeFor(props.income, cursor.year, cursor.month);
   const byMonthCat = useMemo(() => categoryFromOccurrences(stats.occurrences), [stats.occurrences]);
@@ -46,7 +46,6 @@ export function Overview(props: {
   const segs = [
     { key: "fixed", label: BUCKET_LABEL.spend, amount: monthSpend, show: true },
     { key: "save", label: BUCKET_LABEL.save, amount: save, show: save > 0 },
-    { key: "give", label: BUCKET_LABEL.give, amount: give, show: give > 0 },
   ].filter((s) => s.show);
 
   return (
@@ -125,13 +124,17 @@ export function Overview(props: {
                 {segs.map((s) => (
                   <span key={s.key}>
                     <i className={`sw ${s.key}`} />
-                    {s.label} <b>₩{num(s.amount)}</b>
-                    {s.key === "save" && <em>{Math.round((save / earned) * 100)}%</em>}
+                    <span>{s.label}</span>
+                    <b>
+                      ₩{num(s.amount)}
+                      {s.key === "save" && <em>{Math.round((save / earned) * 100)}%</em>}
+                    </b>
                   </span>
                 ))}
                 <span>
                   <i className={left < 0 ? "sw neg" : "sw left"} />
-                  남는 돈 <b className={left < 0 ? "neg" : undefined}>{won(left)}</b>
+                  <span>남는 돈</span>
+                  <b className={left < 0 ? "neg" : undefined}>{won(left)}</b>
                 </span>
               </div>
             </div>

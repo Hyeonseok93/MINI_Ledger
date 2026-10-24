@@ -587,11 +587,7 @@
   color: var(--muted);
 }
 
-/* buckets: 고정 지출 / 저축·투자 / 나눔·가족 */
-
-.income-sum {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
+/* buckets: 고정 지출 / 저축·투자 */
 
 .income-sum dd em {
   margin-left: 8px;
@@ -604,12 +600,6 @@
 .mcell-foot em.b-save,
 .flow-tip b.b-save {
   color: var(--save);
-}
-
-.income-sum dd.b-give,
-.mcell-foot em.b-give,
-.flow-tip b.b-give {
-  color: var(--give);
 }
 
 .mcell-bar {
@@ -628,11 +618,6 @@
 
 .mcell-bar i.seg-save {
   background: var(--save);
-  opacity: 1;
-}
-
-.mcell-bar i.seg-give {
-  background: var(--give);
   opacity: 1;
 }
 
