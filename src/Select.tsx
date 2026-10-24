@@ -1,6 +1,7 @@
 import { KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-export type SelectOption = { value: string; label: string; short?: string };
+/** `tone` adds a `tone-<name>` class to the option (e.g. a bucket color mark). */
+export type SelectOption = { value: string; label: string; short?: string; tone?: string };
 
 type Props = {
   value: string;
@@ -104,7 +105,9 @@ export function Select({ value, options, onChange, columns = 1, ariaLabel }: Pro
               key={o.value}
               role="option"
               aria-selected={o.value === value}
-              className={[o.value === value && "selected", i === active && "active"].filter(Boolean).join(" ")}
+              className={[o.value === value && "selected", i === active && "active", o.tone && `tone-${o.tone}`]
+                .filter(Boolean)
+                .join(" ")}
               onMouseEnter={() => setActive(i)}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => pick(o.value)}

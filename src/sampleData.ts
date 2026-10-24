@@ -23,4 +23,7 @@ export const SAMPLE: Seed[] = [
   { name: "필라테스", amount: 30000, cycle: "weekly", weekday: 3, category: "운동" },
   { name: "자동차보험", amount: 210000, cycle: "quarterly", month: 3, day: 5, category: "차량" },
   { name: "도메인·호스팅", amount: 180000, cycle: "yearly", month: 9, day: 12, category: "구독", note: "연 1회" },
+  { name: "적금", amount: 300000, cycle: "monthly", day: 25, category: "저축" },
+  { name: "주택청약", amount: 100000, cycle: "monthly", day: 25, category: "청약" },
+  { name: "부모님 용돈", amount: 200000, cycle: "monthly", day: 5, category: "가족 용돈" },
 ];

@@ -44,7 +44,7 @@ export function CategoryInsight({
   return (
     <div className="col">
       <div className="col-head">
-        <span className="mono-label">Category share · this month</span>
+        <span className="mono-label">Spending share · this month</span>
         <span className="mono-label dim head-count">
           <b>{cats.length}</b>
           <i>분류</i>
@@ -80,7 +80,7 @@ export function CategoryInsight({
               </>
             ) : (
               <>
-                <span className="dc-label">이 달 고정비</span>
+                <span className="dc-label">이 달 고정 지출</span>
                 <strong className="sm">₩{num(monthSpend)}</strong>
                 <span className="dc-hint">조각에 마우스를 올려보세요</span>
               </>

@@ -10,7 +10,7 @@ import {
   type FixedItem,
   type ItemSet,
 } from "./schedule";
-import { INCOME_START, monthsInYear, num, pad2 } from "./format";
+import { BUCKETS, BUCKET_LABEL, INCOME_START, bucketOf, monthsInYear, num, pad2 } from "./format";
 import { type Form } from "./form";
 import { EntryForm } from "./ledger/EntryForm";
 import { useSetBench } from "./ledger/useSetBench";
@@ -81,6 +81,13 @@ export function Ledger(p: LedgerProps) {
       .map((id) => p.items.find((it) => it.id === id))
       .filter((it): it is FixedItem => !!it);
   }, [bench.selectedSet, p.items]);
+
+  /** Monthly-equivalent amount of the selected set, per bucket. */
+  const setBuckets = useMemo(() => {
+    const totals = { spend: 0, save: 0, give: 0 };
+    for (const it of selectedSetItems) totals[bucketOf(it.category)] += perMonth(it);
+    return totals;
+  }, [selectedSetItems]);
 
   function clickSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -164,7 +171,7 @@ export function Ledger(p: LedgerProps) {
         {rows.map((it) => (
           <div key={it.id} className={p.editingId === it.id ? "sheet-row selected" : "sheet-row"}>
             <span className="s-item">{it.name}</span>
-            <span className="s-cat">{it.category}</span>
+            <span className={`s-cat b-${bucketOf(it.category)}`}>{it.category}</span>
             <span className="s-cycle">{CYCLE_LABEL[it.cycle]}</span>
             <span className="s-amt">₩{num(perMonth(it))}</span>
             <span className="s-ops">
@@ -304,7 +311,14 @@ export function Ledger(p: LedgerProps) {
                 <span className="mono-label">Apply set · months</span>
                 <h2>{bench.selectedSet.name}</h2>
                 <p>
-                  <b>{selectedSetItems.length}</b> 항목 · 달을 누르면 개요·수입에 반영
+                  <b>{selectedSetItems.length}</b> 항목
+                  {BUCKETS.filter((b) => setBuckets[b] > 0).map((b) => (
+                    <span key={b} className={`assign-bucket b-${b}`}>
+                      {" "}
+                      · {BUCKET_LABEL[b]} ₩{num(setBuckets[b])}/월
+                    </span>
+                  ))}{" "}
+                  · 달을 누르면 개요·수입에 반영
                 </p>
               </div>
               <div className="year-switch">
@@ -360,7 +374,7 @@ export function Ledger(p: LedgerProps) {
                         <span className="ai-amt">₩{num(perMonth(it))}</span>
                       </div>
                       <div className="ai-sub">
-                        <span>{it.category}</span>
+                        <span className={`b-${bucketOf(it.category)}`}>{it.category}</span>
                         <span>{CYCLE_LABEL[it.cycle]}</span>
                         <span>{whenLabel(it)}</span>
                         {it.note ? <span>{it.note}</span> : null}

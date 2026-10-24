@@ -1,5 +1,5 @@
 import { CYCLE_LABEL, type Analytics } from "../schedule";
-import { DAYS, num } from "../format";
+import { BUCKET_LABEL, DAYS, bucketOf, num } from "../format";
 
 export function MonthScale({ stats }: { stats: Analytics }) {
   const days = stats.daysInMonth;
@@ -48,7 +48,11 @@ export function MonthScale({ stats }: { stats: Analytics }) {
         {dots.map(({ item, day, size, offset }) => (
           <div
             key={`${item.id}-${day}`}
-            className={[day < stats.today ? "dot past" : "dot", day > days * 0.72 ? "tip-left" : ""]
+            className={[
+              day < stats.today ? "dot past" : "dot",
+              `b-${bucketOf(item.category)}`,
+              day > days * 0.72 ? "tip-left" : "",
+            ]
               .filter(Boolean)
               .join(" ")}
             style={{ left: `${pos(day)}%`, width: size, height: size, bottom: 14 + offset }}
@@ -57,7 +61,10 @@ export function MonthScale({ stats }: { stats: Analytics }) {
               <b>{day}일</b>
               <strong>{item.name}</strong>
               <em>₩{num(item.amount)}</em>
-              <i>{CYCLE_LABEL[item.cycle]}</i>
+              <i>
+                {CYCLE_LABEL[item.cycle]}
+                {bucketOf(item.category) !== "spend" && ` · ${BUCKET_LABEL[bucketOf(item.category)]}`}
+              </i>
             </span>
           </div>
         ))}

@@ -744,3 +744,84 @@
   margin: 0;
 }
 
+
+/* buckets: 고정 지출 / 저축·투자 / 나눔·가족 */
+
+.hero-bar .seg.save,
+.hero-bar-legend .sw.save {
+  background: var(--save);
+}
+
+.hero-bar .seg.give,
+.hero-bar-legend .sw.give {
+  background: var(--give);
+}
+
+.hero-bar .seg + .seg {
+  border-left: 2px solid var(--bg);
+}
+
+.hero-bar-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  row-gap: 8px;
+}
+
+.hero-bar-legend em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--save);
+}
+
+.cat-group + .cat-group {
+  margin-top: 22px;
+}
+
+.cat-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cat-group-head b {
+  font-weight: 500;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.cat-group.b-save .cat-group-head span {
+  color: var(--save);
+}
+
+.cat-group.b-save .stack i,
+.cat-group.b-save .swatch {
+  background: var(--save);
+}
+
+.cat-group.b-give .cat-group-head span {
+  color: var(--give);
+}
+
+.cat-group.b-give .stack i,
+.cat-group.b-give .swatch {
+  background: var(--give);
+}
+
+.dot.b-save:not(.past) {
+  background: var(--save);
+}
+
+.dot.b-give:not(.past) {
+  background: var(--give);
+}
+
+.row.up.b-save .row-name em {
+  color: var(--save);
+}
+
+.row.up.b-give .row-name em {
+  color: var(--give);
+}

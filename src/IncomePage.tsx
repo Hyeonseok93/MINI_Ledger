@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { fixedInMonth, incomeFor, monthKey, type Assignments, type FixedItem, type Income } from "./schedule";
-import { INCOME_START, man, monthsInYear, num, pad2, parseWon, won } from "./format";
+import { bucketsInMonth, incomeFor, monthKey, type Assignments, type FixedItem, type Income } from "./schedule";
+import { BUCKET_LABEL, INCOME_START, man, monthsInYear, num, pad2, parseWon, won } from "./format";
 
 export function IncomePage(props: {
   items: FixedItem[];
@@ -22,18 +22,22 @@ export function IncomePage(props: {
   const months = monthsInYear(year).map((m) => {
     const key = monthKey(year, m);
     const earned = incomeFor(income, year, m);
-    const fixed = fixedInMonth(props.items, year, m - 1, props.assignments);
+    const { spend: fixed, save, give } = bucketsInMonth(props.items, year, m - 1, props.assignments);
     const current = year === now.getFullYear() && m === now.getMonth() + 1;
     // No set applied yet → fixed cost is unknown, not ₩0.
     const applied = (props.assignments[key] ?? []).some((id) => itemIds.has(id));
-    return { m, key, earned, fixed, current, applied, custom: key in income.months };
+    const left = earned - fixed - save - give;
+    return { m, key, earned, fixed, save, give, left, current, applied, custom: key in income.months };
   });
   // Totals cover applied months only, so unknown months don't inflate 남는 돈.
   const counted = months.filter((x) => x.applied);
   const unapplied = months.filter((x) => !x.applied);
-  const earnedTotal = counted.reduce((s, x) => s + x.earned, 0);
-  const fixedTotal = counted.reduce((s, x) => s + x.fixed, 0);
-  const left = earnedTotal - fixedTotal;
+  const sum = (pick: (x: (typeof months)[number]) => number) => counted.reduce((s, x) => s + pick(x), 0);
+  const earnedTotal = sum((x) => x.earned);
+  const fixedTotal = sum((x) => x.fixed);
+  const saveTotal = sum((x) => x.save);
+  const giveTotal = sum((x) => x.give);
+  const left = sum((x) => x.left);
   const span =
     counted.length === months.length && months.length < 12
       ? ` (${months[0].m}–12월)`
@@ -107,7 +111,9 @@ export function IncomePage(props: {
         className={months.length < 12 ? "months partial" : "months"}
         style={months.length < 12 ? { gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` } : undefined}
       >
-        {months.map(({ m, key, earned, fixed, current, applied, custom }) => {
+        {months.map(({ m, key, earned, fixed, save, give, current, applied, custom }) => {
+          const out = fixed + save + give;
+          const scale = Math.max(earned, out, 1);
           const ratio = applied && earned > 0 ? fixed / earned : 0;
           return (
             <div
@@ -142,13 +148,24 @@ export function IncomePage(props: {
                   ₩{num(earned)}
                 </button>
               )}
-              <div className="mcell-bar">
-                <i className={ratio > 1 ? "over" : ""} style={{ width: `${Math.min(1, ratio) * 100}%` }} />
+              <div className={applied && out > earned ? "mcell-bar over" : "mcell-bar"}>
+                {applied &&
+                  (
+                    [
+                      { k: "fixed", v: fixed },
+                      { k: "save", v: save },
+                      { k: "give", v: give },
+                    ] as const
+                  ).map(({ k, v }) => <i key={k} className={`seg-${k}`} style={{ width: `${(v / scale) * 100}%` }} />)}
               </div>
               <div className="mcell-foot">
                 {applied ? (
                   <>
-                    <span>고정비 ₩{num(fixed)}</span>
+                    <span>
+                      지출 ₩{num(fixed)}
+                      {save > 0 && <em className="b-save">저축 ₩{num(save)}</em>}
+                      {give > 0 && <em className="b-give">나눔 ₩{num(give)}</em>}
+                    </span>
                     <span>{earned > 0 ? `${Math.round(ratio * 100)}%` : "—"}</span>
                   </>
                 ) : (
@@ -168,31 +185,51 @@ export function IncomePage(props: {
           <dd>₩{num(earnedTotal)}</dd>
         </div>
         <div>
-          <dt>
-            {year} 고정비{span}
-          </dt>
-          <dd>₩{num(fixedTotal)}</dd>
+          <dt>{BUCKET_LABEL.spend}</dt>
+          <dd>
+            ₩{num(fixedTotal)}
+            <em>{pct(fixedTotal, earnedTotal)}</em>
+          </dd>
         </div>
         <div>
           <dt>남는 돈</dt>
           <dd className={left < 0 ? "neg" : "accent"}>{won(left)}</dd>
         </div>
         <div>
-          <dt>고정비 비율</dt>
-          <dd>{earnedTotal > 0 ? `${Math.round((fixedTotal / earnedTotal) * 100)}%` : "—"}</dd>
+          <dt>{BUCKET_LABEL.save}</dt>
+          <dd className="b-save">
+            ₩{num(saveTotal)}
+            <em>저축률 {pct(saveTotal, earnedTotal)}</em>
+          </dd>
+        </div>
+        <div>
+          <dt>{BUCKET_LABEL.give}</dt>
+          <dd className="b-give">
+            ₩{num(giveTotal)}
+            <em>{pct(giveTotal, earnedTotal)}</em>
+          </dd>
+        </div>
+        <div>
+          <dt>나가는 돈 합계</dt>
+          <dd>
+            ₩{num(fixedTotal + saveTotal + giveTotal)}
+            <em>{pct(fixedTotal + saveTotal + giveTotal, earnedTotal)}</em>
+          </dd>
         </div>
       </dl>
 
       <FlowChart months={months} />
       {unapplied.length > 0 && (
         <p className="income-note">
-          세트를 적용하지 않은 {unapplied.map((x) => `${x.m}월`).join(", ")}은 고정비를 알 수 없어 합계에서 뺐습니다.
+          세트를 적용하지 않은 {unapplied.map((x) => `${x.m}월`).join(", ")}은 나가는 돈을 알 수 없어 합계에서 뺐습니다.
           장부에서 세트를 적용하면 반영됩니다.
         </p>
       )}
     </>
   );
 }
+
+const pct = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : "—");
 
 function niceMax(value: number, ticks: number) {
   if (value <= 0) return ticks;
@@ -205,41 +242,44 @@ function niceMax(value: number, ticks: number) {
 function FlowChart({
   months,
 }: {
-  months: { m: number; key: string; earned: number; fixed: number; applied: boolean }[];
+  months: {
+    m: number;
+    key: string;
+    earned: number;
+    fixed: number;
+    save: number;
+    give: number;
+    left: number;
+    applied: boolean;
+  }[];
 }) {
   const TICKS = 4;
-  const rows = months.map((x) => ({
-    ...x,
-    left: x.earned - x.fixed,
-    ratio: x.earned > 0 ? (x.fixed / x.earned) * 100 : 0,
-  }));
+  const rows = months;
   const top = niceMax(
-    Math.max(0, ...rows.flatMap((r) => (r.applied ? [r.earned, r.fixed, r.left] : [r.earned]))),
+    Math.max(0, ...rows.flatMap((r) => (r.applied ? [r.earned, r.fixed, r.save, r.left] : [r.earned]))),
     TICKS
   );
   const minLeft = Math.min(0, ...rows.filter((r) => r.applied).map((r) => r.left));
   const bottom = minLeft < 0 ? -Math.ceil(-minLeft / (top / TICKS)) * (top / TICKS) : 0;
   const steps = Math.round((top - bottom) / (top / TICKS));
-  const ratioTop = 100;
 
   const x = (i: number) => ((i + 0.5) / rows.length) * 100;
   const y = (v: number) => ((top - v) / (top - bottom)) * 100;
-  const yr = (v: number) => (1 - Math.min(v, ratioTop) / ratioTop) * 100;
   type Row = (typeof rows)[number];
-  // Fixed-cost series only run through months with a set applied; income runs through all.
+  // Outflow series only run through months with a set applied; income runs through all.
   const shown = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.applied);
   const all = rows.map((r, i) => ({ r, i }));
-  const path = (pick: (r: Row) => number, scale = y, pts = shown) =>
-    pts.map(({ r, i }, n) => `${n ? "L" : "M"}${x(i)},${scale(pick(r))}`).join(" ");
+  const path = (pick: (r: Row) => number, pts = shown) =>
+    pts.map(({ r, i }, n) => `${n ? "L" : "M"}${x(i)},${y(pick(r))}`).join(" ");
   const area = shown.length
     ? `${path((r) => r.left)} L${x(shown[shown.length - 1].i)},${y(0)} L${x(shown[0].i)},${y(0)} Z`
     : "";
 
   const series = [
-    { key: "earned", label: "수입", d: path((r) => r.earned, y, all), pick: (r: Row) => y(r.earned), always: true },
-    { key: "fixed", label: "고정비", d: path((r) => r.fixed), pick: (r: Row) => y(r.fixed), always: false },
+    { key: "earned", label: "수입", d: path((r) => r.earned, all), pick: (r: Row) => y(r.earned), always: true },
+    { key: "fixed", label: BUCKET_LABEL.spend, d: path((r) => r.fixed), pick: (r: Row) => y(r.fixed), always: false },
+    { key: "save", label: BUCKET_LABEL.save, d: path((r) => r.save), pick: (r: Row) => y(r.save), always: false },
     { key: "left", label: "남는 돈", d: path((r) => r.left), pick: (r: Row) => y(r.left), always: false },
-    { key: "ratio", label: "고정비 비율", d: path((r) => r.ratio, yr), pick: (r: Row) => yr(r.ratio), always: false },
   ];
 
   return (
@@ -261,7 +301,6 @@ function FlowChart({
           return (
             <div key={i} className={v === 0 ? "flow-line zero" : "flow-line"} style={{ bottom: `${(i / steps) * 100}%` }}>
               <span>{man(v)}</span>
-              <span className="r">{Math.round((ratioTop / steps) * i)}%</span>
             </div>
           );
         })}
@@ -300,18 +339,30 @@ function FlowChart({
                 {r.applied ? (
                   <>
                     <span>
-                      고정비 <b>₩{num(r.fixed)}</b>
+                      {BUCKET_LABEL.spend} <b>₩{num(r.fixed)}</b>
                     </span>
+                    {r.save > 0 && (
+                      <span>
+                        {BUCKET_LABEL.save} <b className="b-save">₩{num(r.save)}</b>
+                      </span>
+                    )}
+                    {r.give > 0 && (
+                      <span>
+                        {BUCKET_LABEL.give} <b className="b-give">₩{num(r.give)}</b>
+                      </span>
+                    )}
                     <span>
                       남는 돈 <b className={r.left < 0 ? "neg" : "accent"}>{won(r.left)}</b>
                     </span>
-                    <span>
-                      고정비 비율 <b className="signal">{r.earned > 0 ? `${Math.round(r.ratio)}%` : "—"}</b>
-                    </span>
+                    {r.save > 0 && (
+                      <span>
+                        저축률 <b className="b-save">{pct(r.save, r.earned)}</b>
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span>
-                    고정비 <b>세트 미적용</b>
+                    {BUCKET_LABEL.spend} <b>세트 미적용</b>
                   </span>
                 )}
               </div>

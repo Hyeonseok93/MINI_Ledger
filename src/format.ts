@@ -1,33 +1,45 @@
-export const CATEGORIES = [
-  "주거",
-  "생활",
-  "식비",
-  "공과금",
-  "통신",
-  "구독",
-  "쇼핑",
-  "보험",
-  "교통",
-  "차량",
-  "대출",
-  "저축",
-  "투자",
-  "이체",
-  "송금",
-  "용돈",
-  "세금",
-  "교육",
-  "건강·의료",
-  "운동",
-  "취미",
-  "반려동물",
-  "육아",
-  "회비",
-  "경조사",
-  "기부",
-  "헌금",
-  "기타",
-];
+/** Where the money goes: spent (incl. loan repayments), kept (savings/investments), or given away. */
+export type Bucket = "spend" | "save" | "give";
+
+export const BUCKETS: Bucket[] = ["spend", "save", "give"];
+export const BUCKET_LABEL: Record<Bucket, string> = { spend: "고정 지출", save: "저축·투자", give: "나눔·가족" };
+
+export const CATEGORY_GROUPS: Record<Bucket, string[]> = {
+  spend: [
+    "주거",
+    "생활",
+    "식비",
+    "공과금",
+    "통신",
+    "구독",
+    "쇼핑",
+    "보험",
+    "교통",
+    "차량",
+    "렌탈·할부",
+    "대출",
+    "세금",
+    "교육",
+    "건강·의료",
+    "운동",
+    "취미",
+    "반려동물",
+    "육아",
+    "회비",
+  ],
+  save: ["저축", "투자", "연금", "청약"],
+  give: ["헌금", "기부", "경조사", "가족 용돈", "송금"],
+};
+
+/** Dropdown order: grouped by bucket, 기타 (a spend category) last. */
+export const CATEGORIES = [...CATEGORY_GROUPS.spend, ...CATEGORY_GROUPS.save, ...CATEGORY_GROUPS.give, "기타"];
+
+/** Unknown or legacy categories count as spending. */
+export function bucketOf(category: string): Bucket {
+  if (CATEGORY_GROUPS.save.includes(category)) return "save";
+  if (CATEGORY_GROUPS.give.includes(category)) return "give";
+  return "spend";
+}
 
 export const SHADES = [1, 0.7, 0.5, 0.36, 0.26, 0.18, 0.12];
 export const WEEKDAYS_EN = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];

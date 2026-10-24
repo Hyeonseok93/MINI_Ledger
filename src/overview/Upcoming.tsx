@@ -1,5 +1,5 @@
 import { CYCLE_LABEL, upcomingInWindow, type Assignments, type FixedItem } from "../schedule";
-import { num, pad2, type YearMonth } from "../format";
+import { BUCKET_LABEL, bucketOf, num, pad2, type YearMonth } from "../format";
 
 export function Upcoming({
   items,
@@ -26,7 +26,7 @@ export function Upcoming({
           <li className="row-empty">이 달 남은 결제와 다음 달 첫 주에 예정된 항목이 없습니다.</li>
         )}
         {rows.map(({ item, date, dday, last, count, total }) => (
-          <li key={`${item.id}-${date.getTime()}`} className="row up">
+          <li key={`${item.id}-${date.getTime()}`} className={`row up b-${bucketOf(item.category)}`}>
             <span className={dday === 0 ? "row-d today" : "row-d"}>{dday === 0 ? "TODAY" : `D−${dday}`}</span>
             <span className="row-name">
               {item.name}
@@ -34,6 +34,7 @@ export function Upcoming({
                 {mmdd(date)}
                 {count > 1 && `–${mmdd(last)}`} · {CYCLE_LABEL[item.cycle]}
                 {count > 1 && ` ${count}회`}
+                {bucketOf(item.category) !== "spend" && ` · ${BUCKET_LABEL[bucketOf(item.category)]}`}
               </em>
             </span>
             <span className="row-amt">₩{num(total)}</span>

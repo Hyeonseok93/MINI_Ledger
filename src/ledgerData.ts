@@ -13,7 +13,9 @@ export const CATEGORY_REMAP: Record<string, string> = {
   "저축·투자": "저축",
   "운동·취미": "운동",
   "회비·경조사": "회비",
-  "가족·용돈": "용돈",
+  "가족·용돈": "가족 용돈",
+  용돈: "가족 용돈",
+  이체: "송금",
 };
 
 export const DEFAULT_SNAPSHOT: LedgerSnapshot = {

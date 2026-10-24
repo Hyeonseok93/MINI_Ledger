@@ -33,6 +33,33 @@ var import_node_path = __toESM(require("node:path"));
 var import_node_crypto = __toESM(require("node:crypto"));
 
 // src/format.ts
+var CATEGORY_GROUPS = {
+  spend: [
+    "\uC8FC\uAC70",
+    "\uC0DD\uD65C",
+    "\uC2DD\uBE44",
+    "\uACF5\uACFC\uAE08",
+    "\uD1B5\uC2E0",
+    "\uAD6C\uB3C5",
+    "\uC1FC\uD551",
+    "\uBCF4\uD5D8",
+    "\uAD50\uD1B5",
+    "\uCC28\uB7C9",
+    "\uB80C\uD0C8\xB7\uD560\uBD80",
+    "\uB300\uCD9C",
+    "\uC138\uAE08",
+    "\uAD50\uC721",
+    "\uAC74\uAC15\xB7\uC758\uB8CC",
+    "\uC6B4\uB3D9",
+    "\uCDE8\uBBF8",
+    "\uBC18\uB824\uB3D9\uBB3C",
+    "\uC721\uC544",
+    "\uD68C\uBE44"
+  ],
+  save: ["\uC800\uCD95", "\uD22C\uC790", "\uC5F0\uAE08", "\uCCAD\uC57D"],
+  give: ["\uD5CC\uAE08", "\uAE30\uBD80", "\uACBD\uC870\uC0AC", "\uAC00\uC871 \uC6A9\uB3C8", "\uC1A1\uAE08"]
+};
+var CATEGORIES = [...CATEGORY_GROUPS.spend, ...CATEGORY_GROUPS.save, ...CATEGORY_GROUPS.give, "\uAE30\uD0C0"];
 var DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 var MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 var INCOME_START = { year: 2026, month: 10 };
@@ -59,7 +86,9 @@ var CATEGORY_REMAP = {
   "\uC800\uCD95\xB7\uD22C\uC790": "\uC800\uCD95",
   "\uC6B4\uB3D9\xB7\uCDE8\uBBF8": "\uC6B4\uB3D9",
   "\uD68C\uBE44\xB7\uACBD\uC870\uC0AC": "\uD68C\uBE44",
-  "\uAC00\uC871\xB7\uC6A9\uB3C8": "\uC6A9\uB3C8"
+  "\uAC00\uC871\xB7\uC6A9\uB3C8": "\uAC00\uC871 \uC6A9\uB3C8",
+  \uC6A9\uB3C8: "\uAC00\uC871 \uC6A9\uB3C8",
+  \uC774\uCCB4: "\uC1A1\uAE08"
 };
 var DEFAULT_SNAPSHOT = {
   version: 3,

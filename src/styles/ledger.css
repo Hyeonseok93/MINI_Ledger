@@ -702,3 +702,25 @@
   color: var(--muted);
 }
 
+
+/* buckets: savings / giving categories get their color; spending stays neutral */
+
+.select-list li.tone-save {
+  box-shadow: inset 2px 0 0 var(--save);
+}
+
+.select-list li.tone-give {
+  box-shadow: inset 2px 0 0 var(--give);
+}
+
+.s-cat.b-save,
+.ai-sub .b-save,
+.assign-bucket.b-save {
+  color: var(--save);
+}
+
+.s-cat.b-give,
+.ai-sub .b-give,
+.assign-bucket.b-give {
+  color: var(--give);
+}

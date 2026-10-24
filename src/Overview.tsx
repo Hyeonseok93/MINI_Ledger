@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { analyze, incomeFor, type Assignments, type FixedItem, type Income } from "./schedule";
 import {
+  BUCKET_LABEL,
+  bucketOf,
   canShiftPrev,
   num,
   shiftYearMonth,
@@ -32,13 +34,20 @@ export function Overview(props: {
 
   const isCurrent =
     cursor.year === asOf.getFullYear() && cursor.month === asOf.getMonth() + 1;
-  const monthSpend = stats.monthlyTotal;
+  // The hero figure is spending only; savings and giving are shown beside it, and 남는 돈 subtracts all three.
+  const { spend: monthSpend, save, give } = stats.buckets;
+  const outflow = stats.monthlyTotal;
   const earned = incomeFor(props.income, cursor.year, cursor.month);
   const byMonthCat = useMemo(() => categoryFromOccurrences(stats.occurrences), [stats.occurrences]);
+  const spendCats = byMonthCat.filter((c) => bucketOf(c.category) === "spend");
 
-  const left = earned - monthSpend;
-  const fixedShare = earned > 0 ? Math.min(100, (monthSpend / Math.max(earned, monthSpend)) * 100) : 0;
-  const leftShare = earned > 0 && left > 0 ? (left / earned) * 100 : 0;
+  const left = earned - outflow;
+  const scale = Math.max(earned, outflow, 1);
+  const segs = [
+    { key: "fixed", label: BUCKET_LABEL.spend, amount: monthSpend, show: true },
+    { key: "save", label: BUCKET_LABEL.save, amount: save, show: save > 0 },
+    { key: "give", label: BUCKET_LABEL.give, amount: give, show: give > 0 },
+  ].filter((s) => s.show);
 
   return (
     <>
@@ -97,23 +106,29 @@ export function Overview(props: {
           </dl>
 
           {earned > 0 && (
-            <div className="hero-split" aria-label="고정비와 남는 돈 비율">
-              <span className="mono-label">Fixed vs left</span>
+            <div className="hero-split" aria-label="수입이 나가는 곳">
+              <span className="mono-label">Where income goes</span>
               <div className={left < 0 ? "hero-bar over" : "hero-bar"}>
-                <i
-                  className="seg fixed"
-                  style={{ width: `${fixedShare}%` }}
-                  title={`고정비 ₩${num(monthSpend)}`}
-                />
+                {segs.map((s) => (
+                  <i
+                    key={s.key}
+                    className={`seg ${s.key}`}
+                    style={{ width: `${(s.amount / scale) * 100}%` }}
+                    title={`${s.label} ₩${num(s.amount)}`}
+                  />
+                ))}
                 {left > 0 && (
-                  <i className="seg left" style={{ width: `${leftShare}%` }} title={`남는 돈 ₩${num(left)}`} />
+                  <i className="seg left" style={{ width: `${(left / scale) * 100}%` }} title={`남는 돈 ₩${num(left)}`} />
                 )}
               </div>
               <div className="hero-bar-legend">
-                <span>
-                  <i className="sw fixed" />
-                  고정비 <b>₩{num(monthSpend)}</b>
-                </span>
+                {segs.map((s) => (
+                  <span key={s.key}>
+                    <i className={`sw ${s.key}`} />
+                    {s.label} <b>₩{num(s.amount)}</b>
+                    {s.key === "save" && <em>{Math.round((save / earned) * 100)}%</em>}
+                  </span>
+                ))}
                 <span>
                   <i className={left < 0 ? "sw neg" : "sw left"} />
                   남는 돈 <b className={left < 0 ? "neg" : undefined}>{won(left)}</b>
@@ -138,8 +153,8 @@ export function Overview(props: {
       ) : (
         <>
           <section className="cols">
-            <CategoryInsight monthSpend={monthSpend} byCategory={byMonthCat} occurrences={stats.occurrences} />
-            <Categories monthSpend={monthSpend} byCategory={byMonthCat} />
+            <CategoryInsight monthSpend={monthSpend} byCategory={spendCats} occurrences={stats.occurrences} />
+            <Categories buckets={stats.buckets} byCategory={byMonthCat} />
           </section>
           <section className="cols">
             <RhythmInsight

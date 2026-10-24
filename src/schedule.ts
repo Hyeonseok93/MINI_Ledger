@@ -1,3 +1,5 @@
+import { bucketOf, type Bucket } from "./format";
+
 export type Cycle = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
 
 export type FixedItem = {
@@ -131,6 +133,22 @@ export const fixedInMonth = (
     0
   );
 
+export type BucketTotals = Record<Bucket, number>;
+
+export function bucketTotals(occurrences: Occurrence[]): BucketTotals {
+  const totals: BucketTotals = { spend: 0, save: 0, give: 0 };
+  for (const o of occurrences) totals[bucketOf(o.item.category)] += o.item.amount;
+  return totals;
+}
+
+/** Per-bucket totals for one month (month0 is 0-based, like fixedInMonth). */
+export const bucketsInMonth = (items: FixedItem[], year: number, month0: number, assignments?: Assignments) =>
+  bucketTotals(
+    itemsForMonth(items, assignments, year, month0 + 1).flatMap((item) =>
+      occurrencesInMonth(item, year, month0).map((day) => ({ item, day }))
+    )
+  );
+
 export function dueWithin(
   items: FixedItem[],
   days: number,
@@ -214,7 +232,9 @@ export type Analytics = {
   today: number;
   daysInMonth: number;
   count: number;
+  /** Everything paid out this month, all buckets. */
   monthlyTotal: number;
+  buckets: BucketTotals;
   paidThisMonth: number;
   remainingThisMonth: number;
   occurrences: Occurrence[];
@@ -247,6 +267,7 @@ export function analyze(
     daysInMonth: dim,
     count: monthItems.length,
     monthlyTotal,
+    buckets: bucketTotals(occurrences),
     paidThisMonth: occurrences.filter((o) => o.day < today).reduce((s, o) => s + o.item.amount, 0),
     remainingThisMonth: occurrences.filter((o) => o.day >= today).reduce((s, o) => s + o.item.amount, 0),
     occurrences,

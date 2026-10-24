@@ -1,6 +1,6 @@
 import { FormEvent } from "react";
 import { CYCLES, type Cycle } from "../schedule";
-import { CATEGORIES, NOTE_MAX } from "../format";
+import { CATEGORIES, NOTE_MAX, bucketOf } from "../format";
 import { type Form } from "../form";
 import { Select } from "../Select";
 import { SchedulePicker } from "./SchedulePicker";
@@ -42,6 +42,7 @@ export function EntryForm({ form, setForm, editingId, onSubmit, onCancel }: Prop
           options={(CATEGORIES.includes(form.category) ? CATEGORIES : [form.category, ...CATEGORIES]).map((c) => ({
             value: c,
             label: c,
+            tone: bucketOf(c) === "spend" ? undefined : bucketOf(c),
           }))}
           onChange={(v) => setForm({ ...form, category: v })}
           columns={2}

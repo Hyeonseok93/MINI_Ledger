@@ -586,3 +586,79 @@
   font-size: 12px;
   color: var(--muted);
 }
+
+/* buckets: 고정 지출 / 저축·투자 / 나눔·가족 */
+
+.income-sum {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.income-sum dd em {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.income-sum dd.b-save,
+.mcell-foot em.b-save,
+.flow-tip b.b-save {
+  color: var(--save);
+}
+
+.income-sum dd.b-give,
+.mcell-foot em.b-give,
+.flow-tip b.b-give {
+  color: var(--give);
+}
+
+.mcell-bar {
+  display: flex;
+  gap: 1px;
+}
+
+.mcell-bar i {
+  flex: 0 0 auto;
+}
+
+.mcell-bar i.seg-fixed {
+  background: #6f737b;
+  opacity: 1;
+}
+
+.mcell-bar i.seg-save {
+  background: var(--save);
+  opacity: 1;
+}
+
+.mcell-bar i.seg-give {
+  background: var(--give);
+  opacity: 1;
+}
+
+.mcell-bar.over {
+  box-shadow: 0 0 0 1px var(--warn);
+}
+
+.mcell-foot > span:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.mcell-foot em {
+  font-style: normal;
+}
+
+.flow-legend .k-save {
+  border-color: var(--save);
+}
+
+.ln-save {
+  stroke: var(--save);
+}
+
+.pt-save {
+  border-color: var(--save);
+}

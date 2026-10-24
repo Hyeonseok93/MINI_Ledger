@@ -6,6 +6,7 @@ import {
   monthKeysThrough,
   normalizeItem,
   reapplySetMonths,
+  remapCategory,
   toggleSetMonthIds,
 } from "./ledgerData";
 import { INCOME_START } from "./format";
@@ -168,5 +169,14 @@ describe("ledgerData", () => {
     expect(row.month).toBe(1);
     expect(row.category).toBe("구독");
     expect(row.note).toBe("n");
+  });
+});
+
+describe("category remap for buckets", () => {
+  it("folds 이체 into 송금 and 용돈 into 가족 용돈", () => {
+    expect(remapCategory("이체")).toBe("송금");
+    expect(remapCategory("용돈")).toBe("가족 용돈");
+    expect(remapCategory("가족·용돈")).toBe("가족 용돈");
+    expect(remapCategory("저축")).toBe("저축");
   });
 });

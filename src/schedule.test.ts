@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { CATEGORIES, bucketOf } from "./format";
 import {
   analyze,
+  bucketsInMonth,
   daysInMonth,
   daysUntil,
   dueWithin,
@@ -245,5 +247,34 @@ describe("upcomingInWindow", () => {
       "2026-10": ["oct7", "oct8"],
     });
     expect(rows.map((r) => r.item.id)).toEqual(["oct7"]);
+  });
+});
+
+describe("buckets", () => {
+  it("classifies categories; unknown and loans count as spending", () => {
+    expect(bucketOf("저축")).toBe("save");
+    expect(bucketOf("연금")).toBe("save");
+    expect(bucketOf("청약")).toBe("save");
+    expect(bucketOf("헌금")).toBe("give");
+    expect(bucketOf("가족 용돈")).toBe("give");
+    expect(bucketOf("대출")).toBe("spend");
+    expect(bucketOf("렌탈·할부")).toBe("spend");
+    expect(bucketOf("없는분류")).toBe("spend");
+    expect(new Set(CATEGORIES).size).toBe(CATEGORIES.length);
+    expect(CATEGORIES.at(-1)).toBe("기타");
+  });
+
+  it("splits a month's outflow by bucket and analyze matches", () => {
+    const items = [
+      item({ id: "rent", cycle: "monthly", amount: 500_000, day: 1, category: "주거" }),
+      item({ id: "loan", cycle: "monthly", amount: 200_000, day: 2, category: "대출" }),
+      item({ id: "save", cycle: "monthly", amount: 300_000, day: 3, category: "저축" }),
+      item({ id: "give", cycle: "monthly", amount: 50_000, day: 4, category: "헌금" }),
+    ];
+    const assignments = { "2026-10": ["rent", "loan", "save", "give"] };
+    expect(bucketsInMonth(items, 2026, 9, assignments)).toEqual({ spend: 700_000, save: 300_000, give: 50_000 });
+    const stats = analyze(items, new Date(2026, 9, 1), new Date(2026, 9, 1), assignments);
+    expect(stats.buckets).toEqual({ spend: 700_000, save: 300_000, give: 50_000 });
+    expect(stats.monthlyTotal).toBe(1_050_000);
   });
 });
