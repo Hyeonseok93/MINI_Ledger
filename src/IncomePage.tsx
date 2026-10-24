@@ -18,17 +18,28 @@ export function IncomePage(props: {
 
   useEffect(() => setBaseDraft(income.base ? num(income.base) : ""), [income.base]);
 
+  const itemIds = new Set(props.items.map((it) => it.id));
   const months = monthsInYear(year).map((m) => {
     const key = monthKey(year, m);
     const earned = incomeFor(income, year, m);
     const fixed = fixedInMonth(props.items, year, m - 1, props.assignments);
     const current = year === now.getFullYear() && m === now.getMonth() + 1;
-    return { m, key, earned, fixed, current, custom: key in income.months };
+    // No set applied yet → fixed cost is unknown, not ₩0.
+    const applied = (props.assignments[key] ?? []).some((id) => itemIds.has(id));
+    return { m, key, earned, fixed, current, applied, custom: key in income.months };
   });
-  const firstMonth = months[0]?.m ?? 1;
-  const earnedTotal = months.reduce((s, x) => s + x.earned, 0);
-  const fixedTotal = months.reduce((s, x) => s + x.fixed, 0);
+  // Totals cover applied months only, so unknown months don't inflate 남는 돈.
+  const counted = months.filter((x) => x.applied);
+  const unapplied = months.filter((x) => !x.applied);
+  const earnedTotal = counted.reduce((s, x) => s + x.earned, 0);
+  const fixedTotal = counted.reduce((s, x) => s + x.fixed, 0);
   const left = earnedTotal - fixedTotal;
+  const span =
+    counted.length === months.length && months.length < 12
+      ? ` (${months[0].m}–12월)`
+      : counted.length < months.length
+        ? ` · 적용 ${counted.length}개월`
+        : "";
 
   function commitBase() {
     const base = parseWon(baseDraft);
@@ -96,10 +107,15 @@ export function IncomePage(props: {
         className={months.length < 12 ? "months partial" : "months"}
         style={months.length < 12 ? { gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` } : undefined}
       >
-        {months.map(({ m, key, earned, fixed, current, custom }) => {
-          const ratio = earned > 0 ? fixed / earned : 0;
+        {months.map(({ m, key, earned, fixed, current, applied, custom }) => {
+          const ratio = applied && earned > 0 ? fixed / earned : 0;
           return (
-            <div key={key} className={["mcell", current && "current", custom && "custom"].filter(Boolean).join(" ")}>
+            <div
+              key={key}
+              className={["mcell", current && "current", custom && "custom", !applied && "unapplied"]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <div className="mcell-head">
                 <span className="mono-label">{pad2(m)}</span>
                 {custom && (
@@ -130,8 +146,14 @@ export function IncomePage(props: {
                 <i className={ratio > 1 ? "over" : ""} style={{ width: `${Math.min(1, ratio) * 100}%` }} />
               </div>
               <div className="mcell-foot">
-                <span>고정비 ₩{num(fixed)}</span>
-                <span>{earned > 0 ? `${Math.round(ratio * 100)}%` : "—"}</span>
+                {applied ? (
+                  <>
+                    <span>고정비 ₩{num(fixed)}</span>
+                    <span>{earned > 0 ? `${Math.round(ratio * 100)}%` : "—"}</span>
+                  </>
+                ) : (
+                  <span className="mcell-unapplied">세트 미적용</span>
+                )}
               </div>
             </div>
           );
@@ -141,13 +163,13 @@ export function IncomePage(props: {
       <dl className="income-sum">
         <div>
           <dt>
-            {year} 수입{firstMonth > 1 && ` (${firstMonth}–12월)`}
+            {year} 수입{span}
           </dt>
           <dd>₩{num(earnedTotal)}</dd>
         </div>
         <div>
           <dt>
-            {year} 고정비{firstMonth > 1 && ` (${firstMonth}–12월)`}
+            {year} 고정비{span}
           </dt>
           <dd>₩{num(fixedTotal)}</dd>
         </div>
@@ -162,6 +184,12 @@ export function IncomePage(props: {
       </dl>
 
       <FlowChart months={months} />
+      {unapplied.length > 0 && (
+        <p className="income-note">
+          세트를 적용하지 않은 {unapplied.map((x) => `${x.m}월`).join(", ")}은 고정비를 알 수 없어 합계에서 뺐습니다.
+          장부에서 세트를 적용하면 반영됩니다.
+        </p>
+      )}
     </>
   );
 }
@@ -174,15 +202,22 @@ function niceMax(value: number, ticks: number) {
   return step * ticks;
 }
 
-function FlowChart({ months }: { months: { m: number; key: string; earned: number; fixed: number }[] }) {
+function FlowChart({
+  months,
+}: {
+  months: { m: number; key: string; earned: number; fixed: number; applied: boolean }[];
+}) {
   const TICKS = 4;
   const rows = months.map((x) => ({
     ...x,
     left: x.earned - x.fixed,
     ratio: x.earned > 0 ? (x.fixed / x.earned) * 100 : 0,
   }));
-  const top = niceMax(Math.max(0, ...rows.flatMap((r) => [r.earned, r.fixed, r.left])), TICKS);
-  const minLeft = Math.min(0, ...rows.map((r) => r.left));
+  const top = niceMax(
+    Math.max(0, ...rows.flatMap((r) => (r.applied ? [r.earned, r.fixed, r.left] : [r.earned]))),
+    TICKS
+  );
+  const minLeft = Math.min(0, ...rows.filter((r) => r.applied).map((r) => r.left));
   const bottom = minLeft < 0 ? -Math.ceil(-minLeft / (top / TICKS)) * (top / TICKS) : 0;
   const steps = Math.round((top - bottom) / (top / TICKS));
   const ratioTop = 100;
@@ -190,15 +225,21 @@ function FlowChart({ months }: { months: { m: number; key: string; earned: numbe
   const x = (i: number) => ((i + 0.5) / rows.length) * 100;
   const y = (v: number) => ((top - v) / (top - bottom)) * 100;
   const yr = (v: number) => (1 - Math.min(v, ratioTop) / ratioTop) * 100;
-  const path = (pick: (r: (typeof rows)[number]) => number, scale = y) =>
-    rows.map((r, i) => `${i ? "L" : "M"}${x(i)},${scale(pick(r))}`).join(" ");
-  const area = `${path((r) => r.left)} L${x(rows.length - 1)},${y(0)} L${x(0)},${y(0)} Z`;
+  type Row = (typeof rows)[number];
+  // Fixed-cost series only run through months with a set applied; income runs through all.
+  const shown = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.applied);
+  const all = rows.map((r, i) => ({ r, i }));
+  const path = (pick: (r: Row) => number, scale = y, pts = shown) =>
+    pts.map(({ r, i }, n) => `${n ? "L" : "M"}${x(i)},${scale(pick(r))}`).join(" ");
+  const area = shown.length
+    ? `${path((r) => r.left)} L${x(shown[shown.length - 1].i)},${y(0)} L${x(shown[0].i)},${y(0)} Z`
+    : "";
 
   const series = [
-    { key: "earned", label: "수입", d: path((r) => r.earned), pick: (r: (typeof rows)[number]) => y(r.earned) },
-    { key: "fixed", label: "고정비", d: path((r) => r.fixed), pick: (r: (typeof rows)[number]) => y(r.fixed) },
-    { key: "left", label: "남는 돈", d: path((r) => r.left), pick: (r: (typeof rows)[number]) => y(r.left) },
-    { key: "ratio", label: "고정비 비율", d: path((r) => r.ratio, yr), pick: (r: (typeof rows)[number]) => yr(r.ratio) },
+    { key: "earned", label: "수입", d: path((r) => r.earned, y, all), pick: (r: Row) => y(r.earned), always: true },
+    { key: "fixed", label: "고정비", d: path((r) => r.fixed), pick: (r: Row) => y(r.fixed), always: false },
+    { key: "left", label: "남는 돈", d: path((r) => r.left), pick: (r: Row) => y(r.left), always: false },
+    { key: "ratio", label: "고정비 비율", d: path((r) => r.ratio, yr), pick: (r: Row) => yr(r.ratio), always: false },
   ];
 
   return (
@@ -231,16 +272,16 @@ function FlowChart({ months }: { months: { m: number; key: string; earned: numbe
               <stop offset="1" stopColor="#94efc3" stopOpacity="0" />
             </linearGradient>
           </defs>
-          <path d={area} fill="url(#flow-left-fill)" />
+          {area && <path d={area} fill="url(#flow-left-fill)" />}
           {series.map((s) => (
             <path key={s.key} d={s.d} className={`ln-${s.key}`} vectorEffect="non-scaling-stroke" />
           ))}
         </svg>
         <div className="flow-cols">
           {rows.map((r, i) => (
-            <div key={r.key} className="flow-col">
+            <div key={r.key} className={r.applied ? "flow-col" : "flow-col unapplied"}>
               <span className="flow-guide" />
-              {series.map((s) => (
+              {series.filter((s) => s.always || r.applied).map((s) => (
                 <i
                   key={s.key}
                   className={`pt pt-${s.key}${s.key === "left" && r.left < 0 ? " neg" : ""}`}
@@ -256,15 +297,23 @@ function FlowChart({ months }: { months: { m: number; key: string; earned: numbe
                 <span>
                   수입 <b>₩{num(r.earned)}</b>
                 </span>
-                <span>
-                  고정비 <b>₩{num(r.fixed)}</b>
-                </span>
-                <span>
-                  남는 돈 <b className={r.left < 0 ? "neg" : "accent"}>{won(r.left)}</b>
-                </span>
-                <span>
-                  고정비 비율 <b className="signal">{r.earned > 0 ? `${Math.round(r.ratio)}%` : "—"}</b>
-                </span>
+                {r.applied ? (
+                  <>
+                    <span>
+                      고정비 <b>₩{num(r.fixed)}</b>
+                    </span>
+                    <span>
+                      남는 돈 <b className={r.left < 0 ? "neg" : "accent"}>{won(r.left)}</b>
+                    </span>
+                    <span>
+                      고정비 비율 <b className="signal">{r.earned > 0 ? `${Math.round(r.ratio)}%` : "—"}</b>
+                    </span>
+                  </>
+                ) : (
+                  <span>
+                    고정비 <b>세트 미적용</b>
+                  </span>
+                )}
               </div>
               <span className="flow-label">{r.m}월</span>
             </div>

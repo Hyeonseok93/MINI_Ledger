@@ -118,16 +118,20 @@ export function Ledger(p: LedgerProps) {
     <>
       <section className="ledger-head">
         <h1>
-          {bench.liveWorkIds.length}
+          {p.items.length}
           <small>건</small>
         </h1>
         <p>
           {bench.setEditing ? (
             <>
-              세트 수정 중 <strong>{bench.setName || "…"}</strong>
+              세트 수정 중 <strong>{bench.setName || "…"}</strong> · {bench.liveWorkIds.length}건
             </>
           ) : bench.liveWorkIds.length ? (
-            <>세트에 묶을 항목을 정리한 뒤 아래에서 저장하세요.</>
+            <>
+              작업대 <strong>{bench.liveWorkIds.length}건</strong> · 세트에 묶을 항목을 정리한 뒤 아래에서 저장하세요.
+            </>
+          ) : p.items.length ? (
+            <>모든 항목이 세트에 들어 있습니다. 새 항목은 위에서 추가하세요.</>
           ) : (
             <>위에서 항목을 추가해 세트를 만드세요.</>
           )}

@@ -5,7 +5,8 @@
   --rule-2: #2a2d33;
   --ink: #eceae4;
   --ink-2: #b4b6bb;
-  --muted: #6f737b;
+  --muted: #7a7e86; /* ≈4.8:1 on --bg */
+  --dim: #62666e; /* secondary labels, ≈3.4:1 */
   --accent: #94efc3;
   --accent-ink: #0b0c0e;
   --signal: #ff6a2b;
@@ -75,7 +76,7 @@ select {
 }
 
 .mono-label.dim {
-  color: #4a4d54;
+  color: var(--dim);
 }
 
 .mono-label.head-count {

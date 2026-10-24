@@ -566,3 +566,23 @@
   }
 
 }
+
+.mcell.unapplied .mcell-bar {
+  background: transparent;
+  border-top: 1px dashed var(--rule-2);
+  height: 0;
+}
+
+.mcell-unapplied {
+  color: var(--dim);
+}
+
+.flow-col.unapplied .flow-label {
+  color: var(--dim);
+}
+
+.income-note {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
