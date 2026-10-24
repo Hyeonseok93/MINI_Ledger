@@ -34,7 +34,7 @@ export function Overview(props: {
 
   const isCurrent =
     cursor.year === asOf.getFullYear() && cursor.month === asOf.getMonth() + 1;
-  // The hero figure is spending only; savings are shown beside it, and 남는 돈 subtracts both.
+  // The hero figure is everything going out (spending + savings); the bar legend breaks it down.
   const { spend: monthSpend, save } = stats.buckets;
   const outflow = stats.monthlyTotal;
   const earned = incomeFor(props.income, cursor.year, cursor.month);
@@ -61,7 +61,7 @@ export function Overview(props: {
             ‹
           </button>
           <span className="mono-label">
-            Monthly fixed · {ymLabel(cursor)}
+            Monthly total · {ymLabel(cursor)}
             {isCurrent && <em className="month-now">이번 달</em>}
           </span>
           <button type="button" onClick={() => setCursor((c) => shiftYearMonth(c, 1))} aria-label="다음 달">
@@ -70,7 +70,7 @@ export function Overview(props: {
         </div>
         <div className="figure">
           <span className="figure-cur">₩</span>
-          <span className="figure-num">{num(monthSpend)}</span>
+          <span className="figure-num">{num(outflow)}</span>
         </div>
         <div className="hero-meta-row">
           <dl className="hero-meta">
@@ -79,7 +79,7 @@ export function Overview(props: {
                 <div>
                   <dt>수입 대비</dt>
                   <dd>
-                    {Math.round((monthSpend / earned) * 100)}%
+                    {Math.round((outflow / earned) * 100)}%
                     <em className="meta-sub">₩{num(earned)}</em>
                   </dd>
                 </div>
