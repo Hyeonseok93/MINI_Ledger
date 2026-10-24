@@ -3,8 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "description": "Ledger — desktop fixed-cost tracker",
-  "author": "Hyeonseok Kim",
-  "license": "MIT",
   "main": "electron/main.cjs",
   "scripts": {
     "build:electron": "node scripts/build-electron.mjs",

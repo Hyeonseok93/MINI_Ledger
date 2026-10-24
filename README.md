@@ -135,5 +135,4 @@ npm run build:web # tsc + vite build
 
 ## 📄 License
 
-This project is licensed under the MIT License.  
-Bundled fonts (Pretendard, IBM Plex Mono) follow the SIL Open Font License 1.1 — see `assets/fonts/*-LICENSE.txt`.
+This project is licensed under the MIT License.
