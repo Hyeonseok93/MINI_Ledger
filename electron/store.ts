@@ -20,40 +20,98 @@ import {
 
 let storeDir = "";
 let filePath = "";
+let backupPath = "";
+/** Set when ledger.json can't be parsed; blocks every write so the bad file is never overwritten. */
+let loadError: Error | null = null;
 
 type Draft = Partial<FixedItem> & {
   name?: string;
   amount?: number;
 };
 
+/** Write a temp file, flush it, then rename over the target so a crash never leaves it half-written. */
+function writeAtomic(target: string, text: string) {
+  const tmp = `${target}.tmp`;
+  const fd = fs.openSync(tmp, "w");
+  try {
+    fs.writeFileSync(fd, text, "utf8");
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  try {
+    fs.renameSync(tmp, target);
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
+}
+
+function parseFile(p: string): MutableLedger {
+  return migrateSnapshot(JSON.parse(fs.readFileSync(p, "utf8")));
+}
+
+/** Keep a copy of the unreadable file and return the error that blocks further writes. */
+function quarantine(): Error {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const name = `ledger.corrupt-${stamp}.json`;
+  fs.copyFileSync(filePath, path.join(storeDir, name));
+  return new Error(`장부 파일을 읽을 수 없어 저장을 멈췄습니다. 원본은 ${name}에 보관했습니다. Import로 복구하세요.`);
+}
+
 function ensure() {
   if (!fs.existsSync(storeDir)) fs.mkdirSync(storeDir, { recursive: true });
-  if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify(DEFAULT_SNAPSHOT, null, 2), "utf8");
-  }
+  if (!fs.existsSync(filePath)) writeAtomic(filePath, JSON.stringify(DEFAULT_SNAPSHOT, null, 2));
 }
 
 function read(): MutableLedger {
+  if (loadError) throw loadError;
   ensure();
   try {
-    return migrateSnapshot(JSON.parse(fs.readFileSync(filePath, "utf8")));
+    return parseFile(filePath);
   } catch {
-    return structuredClone(DEFAULT_SNAPSHOT);
+    loadError = quarantine();
+    throw loadError;
   }
 }
 
-function write(data: MutableLedger) {
+/** `backup` copies the current (last good) file to ledger.json.bak before replacing it. */
+function write(data: MutableLedger, backup = true) {
+  if (loadError) throw loadError;
   ensure();
   data.version = Math.max(3, Number(data.version) || 3);
   data.assignments = normalizeAssignments(data.assignments);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+  if (backup) fs.copyFileSync(filePath, backupPath);
+  writeAtomic(filePath, JSON.stringify(data, null, 2));
+}
+
+/** Replace an unreadable ledger.json with a valid ledger.json.bak; false if there is none. */
+function restoreBackup(): boolean {
+  if (!fs.existsSync(backupPath)) return false;
+  try {
+    parseFile(backupPath);
+  } catch {
+    return false;
+  }
+  writeAtomic(filePath, fs.readFileSync(backupPath, "utf8"));
+  loadError = null;
+  return true;
 }
 
 export function init(userData: string) {
   storeDir = path.join(userData, "store");
   filePath = path.join(storeDir, "ledger.json");
-  ensure();
-  const data = read();
+  backupPath = `${filePath}.bak`;
+  loadError = null;
+  fs.mkdirSync(storeDir, { recursive: true });
+  fs.rmSync(`${filePath}.tmp`, { force: true }); // leftover from an interrupted write
+  let data: MutableLedger;
+  try {
+    data = read();
+  } catch {
+    if (!restoreBackup()) return; // stays blocked; the UI shows loadError
+    data = read();
+  }
   ensureOrphansInSet(data);
   write(data);
 }
@@ -235,6 +293,10 @@ export function exportSnapshot(): MutableLedger {
 export function importSnapshot(raw: unknown) {
   const data = migrateSnapshot(raw);
   ensureOrphansInSet(data);
-  write(data);
+  // A full import is the recovery path: it may replace an unreadable (already quarantined) file,
+  // but that file must not become the backup.
+  const broken = loadError !== null;
+  loadError = null;
+  write(data, !broken);
   return true;
 }

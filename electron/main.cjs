@@ -35,7 +35,7 @@ var import_node_crypto = __toESM(require("node:crypto"));
 // src/format.ts
 var DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 var MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
-var INCOME_START = { year: 2026, month: 9 };
+var INCOME_START = { year: 2026, month: 10 };
 
 // src/snapshot.ts
 function isLedgerSnapshot(raw) {
@@ -257,31 +257,80 @@ function migrateSnapshot(raw) {
 // electron/store.ts
 var storeDir = "";
 var filePath = "";
+var backupPath = "";
+var loadError = null;
+function writeAtomic(target, text) {
+  const tmp = `${target}.tmp`;
+  const fd = import_node_fs.default.openSync(tmp, "w");
+  try {
+    import_node_fs.default.writeFileSync(fd, text, "utf8");
+    import_node_fs.default.fsyncSync(fd);
+  } finally {
+    import_node_fs.default.closeSync(fd);
+  }
+  try {
+    import_node_fs.default.renameSync(tmp, target);
+  } catch (err) {
+    import_node_fs.default.rmSync(tmp, { force: true });
+    throw err;
+  }
+}
+function parseFile(p) {
+  return migrateSnapshot(JSON.parse(import_node_fs.default.readFileSync(p, "utf8")));
+}
+function quarantine() {
+  const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+  const name = `ledger.corrupt-${stamp}.json`;
+  import_node_fs.default.copyFileSync(filePath, import_node_path.default.join(storeDir, name));
+  return new Error(`\uC7A5\uBD80 \uD30C\uC77C\uC744 \uC77D\uC744 \uC218 \uC5C6\uC5B4 \uC800\uC7A5\uC744 \uBA48\uCDC4\uC2B5\uB2C8\uB2E4. \uC6D0\uBCF8\uC740 ${name}\uC5D0 \uBCF4\uAD00\uD588\uC2B5\uB2C8\uB2E4. Import\uB85C \uBCF5\uAD6C\uD558\uC138\uC694.`);
+}
 function ensure() {
   if (!import_node_fs.default.existsSync(storeDir)) import_node_fs.default.mkdirSync(storeDir, { recursive: true });
-  if (!import_node_fs.default.existsSync(filePath)) {
-    import_node_fs.default.writeFileSync(filePath, JSON.stringify(DEFAULT_SNAPSHOT, null, 2), "utf8");
-  }
+  if (!import_node_fs.default.existsSync(filePath)) writeAtomic(filePath, JSON.stringify(DEFAULT_SNAPSHOT, null, 2));
 }
 function read() {
+  if (loadError) throw loadError;
   ensure();
   try {
-    return migrateSnapshot(JSON.parse(import_node_fs.default.readFileSync(filePath, "utf8")));
+    return parseFile(filePath);
   } catch {
-    return structuredClone(DEFAULT_SNAPSHOT);
+    loadError = quarantine();
+    throw loadError;
   }
 }
-function write(data) {
+function write(data, backup = true) {
+  if (loadError) throw loadError;
   ensure();
   data.version = Math.max(3, Number(data.version) || 3);
   data.assignments = normalizeAssignments(data.assignments);
-  import_node_fs.default.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+  if (backup) import_node_fs.default.copyFileSync(filePath, backupPath);
+  writeAtomic(filePath, JSON.stringify(data, null, 2));
+}
+function restoreBackup() {
+  if (!import_node_fs.default.existsSync(backupPath)) return false;
+  try {
+    parseFile(backupPath);
+  } catch {
+    return false;
+  }
+  writeAtomic(filePath, import_node_fs.default.readFileSync(backupPath, "utf8"));
+  loadError = null;
+  return true;
 }
 function init(userData) {
   storeDir = import_node_path.default.join(userData, "store");
   filePath = import_node_path.default.join(storeDir, "ledger.json");
-  ensure();
-  const data = read();
+  backupPath = `${filePath}.bak`;
+  loadError = null;
+  import_node_fs.default.mkdirSync(storeDir, { recursive: true });
+  import_node_fs.default.rmSync(`${filePath}.tmp`, { force: true });
+  let data;
+  try {
+    data = read();
+  } catch {
+    if (!restoreBackup()) return;
+    data = read();
+  }
   ensureOrphansInSet(data);
   write(data);
 }
@@ -435,7 +484,9 @@ function exportSnapshot() {
 function importSnapshot(raw) {
   const data = migrateSnapshot(raw);
   ensureOrphansInSet(data);
-  write(data);
+  const broken = loadError !== null;
+  loadError = null;
+  write(data, !broken);
   return true;
 }
 

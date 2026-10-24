@@ -95,4 +95,62 @@ describe("electron store", () => {
     expect(ids).toContain(draft.id);
     expect(ids).not.toContain(a.id);
   });
+
+  describe("safe saving", () => {
+    const file = () => path.join(dir, "store", "ledger.json");
+    const bak = () => `${file()}.bak`;
+    const names = (raw: string) => (JSON.parse(raw).items as { name: string }[]).map((it) => it.name);
+    const corruptCopies = () => fs.readdirSync(path.join(dir, "store")).filter((f) => f.startsWith("ledger.corrupt-"));
+
+    it("keeps the previous version in .bak and leaves no temp file", () => {
+      store.upsert({ name: "A", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+      store.upsert({ name: "B", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+      expect(names(fs.readFileSync(file(), "utf8"))).toEqual(["A", "B"]);
+      expect(names(fs.readFileSync(bak(), "utf8"))).toEqual(["A"]);
+      expect(fs.existsSync(`${file()}.tmp`)).toBe(false);
+    });
+
+    it("restores from .bak at startup when ledger.json is unreadable", () => {
+      store.upsert({ name: "A", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+      store.upsert({ name: "B", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+      fs.writeFileSync(file(), "{ broken", "utf8");
+
+      store.init(dir);
+      expect(store.getAll().map((it) => it.name)).toEqual(["A"]);
+      expect(corruptCopies()).toHaveLength(1);
+    });
+
+    it("blocks every write when ledger.json is unreadable and there is no backup", () => {
+      store.upsert({ name: "A", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+      fs.rmSync(bak());
+      fs.writeFileSync(file(), "{ broken", "utf8");
+
+      store.init(dir);
+      expect(() => store.getAll()).toThrow(/Import/);
+      expect(() => store.upsert({ name: "B", amount: 1, cycle: "monthly", day: 1, category: "기타" })).toThrow();
+      expect(fs.readFileSync(file(), "utf8")).toBe("{ broken");
+      expect(corruptCopies()).toHaveLength(1);
+    });
+
+    it("blocks writes when ledger.json breaks mid-session", () => {
+      store.upsert({ name: "A", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+      const before = fs.readFileSync(bak(), "utf8");
+      fs.writeFileSync(file(), "[]", "utf8");
+
+      expect(() => store.upsert({ name: "B", amount: 1, cycle: "monthly", day: 1, category: "기타" })).toThrow();
+      expect(fs.readFileSync(file(), "utf8")).toBe("[]");
+      expect(fs.readFileSync(bak(), "utf8")).toBe(before);
+    });
+
+    it("import recovers a blocked store without backing up the broken file", () => {
+      store.upsert({ name: "A", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+      const before = fs.readFileSync(bak(), "utf8");
+      fs.writeFileSync(file(), "{ broken", "utf8");
+      expect(() => store.getAll()).toThrow();
+
+      store.importSnapshot({ version: 3, items: [], assignments: {}, sets: [], income: { base: 0, months: {} } });
+      expect(store.getAll()).toEqual([]);
+      expect(fs.readFileSync(bak(), "utf8")).toBe(before);
+    });
+  });
 });
