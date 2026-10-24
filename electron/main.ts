@@ -80,8 +80,10 @@ function registerIpc() {
 
   ipcMain.handle("data:import", async (e) => {
     const w = win(e);
+    const backups = store.getBackupDir();
     const openOpts = {
       title: "Import ledger JSON",
+      defaultPath: fs.existsSync(backups) ? backups : undefined,
       filters: [{ name: "JSON", extensions: ["json"] }],
       properties: ["openFile" as const],
     };
@@ -108,6 +110,21 @@ function registerIpc() {
     }
     store.importSnapshot(raw);
     return { ok: true, path: picked.filePaths[0] };
+  });
+
+  ipcMain.handle("dialog:confirm", async (e, opts: { message?: string; detail?: string; confirmLabel?: string }) => {
+    const w = win(e);
+    const msgOpts = {
+      type: "warning" as const,
+      buttons: ["취소", String(opts?.confirmLabel || "확인")],
+      defaultId: 0,
+      cancelId: 0,
+      title: "Ledger",
+      message: String(opts?.message || ""),
+      detail: opts?.detail ? String(opts.detail) : undefined,
+    };
+    const result = w ? await dialog.showMessageBox(w, msgOpts) : await dialog.showMessageBox(msgOpts);
+    return result.response === 1;
   });
 
   ipcMain.on("window:minimize", (e) => win(e)?.minimize());

@@ -16,7 +16,8 @@ import_electron.contextBridge.exposeInMainWorld("ledger", {
   setIncome: (income) => import_electron.ipcRenderer.invoke("income:set", income),
   getPaths: () => import_electron.ipcRenderer.invoke("app:getPaths"),
   exportJson: () => import_electron.ipcRenderer.invoke("data:export"),
-  importJson: () => import_electron.ipcRenderer.invoke("data:import")
+  importJson: () => import_electron.ipcRenderer.invoke("data:import"),
+  confirm: (opts) => import_electron.ipcRenderer.invoke("dialog:confirm", opts)
 });
 import_electron.contextBridge.exposeInMainWorld("windowControls", {
   minimize: () => import_electron.ipcRenderer.send("window:minimize"),

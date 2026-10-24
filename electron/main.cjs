@@ -258,6 +258,9 @@ function migrateSnapshot(raw) {
 var storeDir = "";
 var filePath = "";
 var backupPath = "";
+var backupDir = "";
+var DAILY_KEEP = 14;
+var DAILY_FILE = /^ledger-\d{4}-\d{2}-\d{2}\.json$/;
 var loadError = null;
 function writeAtomic(target, text) {
   const tmp = `${target}.tmp`;
@@ -298,12 +301,27 @@ function read() {
     throw loadError;
   }
 }
+function localDate(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function dailyBackup() {
+  const target = import_node_path.default.join(backupDir, `ledger-${localDate(/* @__PURE__ */ new Date())}.json`);
+  if (import_node_fs.default.existsSync(target)) return;
+  import_node_fs.default.mkdirSync(backupDir, { recursive: true });
+  writeAtomic(target, import_node_fs.default.readFileSync(filePath, "utf8"));
+  const stale = import_node_fs.default.readdirSync(backupDir).filter((f) => DAILY_FILE.test(f)).sort().slice(0, -DAILY_KEEP);
+  for (const f of stale) import_node_fs.default.rmSync(import_node_path.default.join(backupDir, f), { force: true });
+}
 function write(data, backup = true) {
   if (loadError) throw loadError;
   ensure();
   data.version = Math.max(3, Number(data.version) || 3);
   data.assignments = normalizeAssignments(data.assignments);
-  if (backup) import_node_fs.default.copyFileSync(filePath, backupPath);
+  if (backup) {
+    import_node_fs.default.copyFileSync(filePath, backupPath);
+    dailyBackup();
+  }
   writeAtomic(filePath, JSON.stringify(data, null, 2));
 }
 function restoreBackup() {
@@ -321,6 +339,7 @@ function init(userData) {
   storeDir = import_node_path.default.join(userData, "store");
   filePath = import_node_path.default.join(storeDir, "ledger.json");
   backupPath = `${filePath}.bak`;
+  backupDir = import_node_path.default.join(storeDir, "backups");
   loadError = null;
   import_node_fs.default.mkdirSync(storeDir, { recursive: true });
   import_node_fs.default.rmSync(`${filePath}.tmp`, { force: true });
@@ -336,6 +355,9 @@ function init(userData) {
 }
 function getStoreDir() {
   return storeDir;
+}
+function getBackupDir() {
+  return backupDir;
 }
 function getAll() {
   return read().items.map(normalizeItem);
@@ -557,8 +579,10 @@ function registerIpc() {
   });
   import_electron.ipcMain.handle("data:import", async (e) => {
     const w = win(e);
+    const backups = getBackupDir();
     const openOpts = {
       title: "Import ledger JSON",
+      defaultPath: import_node_fs2.default.existsSync(backups) ? backups : void 0,
       filters: [{ name: "JSON", extensions: ["json"] }],
       properties: ["openFile"]
     };
@@ -583,6 +607,20 @@ function registerIpc() {
     }
     importSnapshot(raw);
     return { ok: true, path: picked.filePaths[0] };
+  });
+  import_electron.ipcMain.handle("dialog:confirm", async (e, opts) => {
+    const w = win(e);
+    const msgOpts = {
+      type: "warning",
+      buttons: ["\uCDE8\uC18C", String(opts?.confirmLabel || "\uD655\uC778")],
+      defaultId: 0,
+      cancelId: 0,
+      title: "Ledger",
+      message: String(opts?.message || ""),
+      detail: opts?.detail ? String(opts.detail) : void 0
+    };
+    const result = w ? await import_electron.dialog.showMessageBox(w, msgOpts) : await import_electron.dialog.showMessageBox(msgOpts);
+    return result.response === 1;
   });
   import_electron.ipcMain.on("window:minimize", (e) => win(e)?.minimize());
   import_electron.ipcMain.on("window:toggleMaximize", (e) => {

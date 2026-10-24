@@ -7,6 +7,8 @@ type FixedDraft = Partial<FixedItem> & {
 
 type SetPatch = { name?: string; itemIds?: string[] };
 
+type ConfirmOptions = { message: string; detail?: string; confirmLabel?: string };
+
 type LedgerApi = {
   getAll: () => Promise<FixedItem[]>;
   upsert: (item: FixedDraft) => Promise<FixedItem>;
@@ -22,6 +24,8 @@ type LedgerApi = {
   getPaths: () => Promise<{ userData: string; storeDir: string }>;
   exportJson: () => Promise<{ ok: boolean; path?: string }>;
   importJson: () => Promise<{ ok: boolean; path?: string }>;
+  /** Native yes/no dialog; resolves true only when the user picks the confirm button. */
+  confirm: (opts: ConfirmOptions) => Promise<boolean>;
 };
 
 type WindowControlsApi = {

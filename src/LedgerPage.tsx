@@ -95,6 +95,19 @@ export function Ledger(p: LedgerProps) {
     return sortDir === "asc" ? " ↑" : " ↓";
   }
 
+  /** Removing a set also deletes items no other set holds (dropReleasedOrphans), so say how many. */
+  function confirmRemoveSet(set: ItemSet) {
+    const others = new Set(p.sets.filter((s) => s.id !== set.id).flatMap((s) => s.itemIds));
+    const doomed = set.itemIds.filter((id) => !others.has(id) && p.items.some((it) => it.id === id)).length;
+    return window.ledger.confirm({
+      message: `'${set.name}' 세트를 삭제할까요?`,
+      detail: doomed
+        ? `이 세트에만 있는 항목 ${doomed}개도 함께 삭제되고, 달별 적용 기록에서도 빠집니다. 되돌릴 수 없습니다.`
+        : "세트 안의 항목은 다른 세트에도 있어서 그대로 남습니다.",
+      confirmLabel: "삭제",
+    });
+  }
+
   function setAppliedToMonth(set: ItemSet, year: number, month1: number) {
     const ids = set.itemIds.filter((id) => p.items.some((it) => it.id === id));
     if (!ids.length) return false;
@@ -264,7 +277,8 @@ export function Ledger(p: LedgerProps) {
                     <button
                       type="button"
                       className="danger"
-                      onClick={() => {
+                      onClick={async () => {
+                        if (!(await confirmRemoveSet(s))) return;
                         if (bench.selectedSetId === s.id) bench.setSelectedSetId(null);
                         p.onRemoveSet(s.id);
                       }}

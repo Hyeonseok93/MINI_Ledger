@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as store from "./store";
 
 describe("electron store", () => {
@@ -140,6 +140,41 @@ describe("electron store", () => {
       expect(() => store.upsert({ name: "B", amount: 1, cycle: "monthly", day: 1, category: "기타" })).toThrow();
       expect(fs.readFileSync(file(), "utf8")).toBe("[]");
       expect(fs.readFileSync(bak(), "utf8")).toBe(before);
+    });
+
+    describe("daily backups", () => {
+      const backups = () => path.join(dir, "store", "backups");
+      const daily = () => fs.readdirSync(backups()).filter((f) => /^ledger-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it("keeps the day's first state and leaves it alone on later saves", () => {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date(2027, 0, 5, 9));
+        store.upsert({ name: "A", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+        store.upsert({ name: "B", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+        expect(names(fs.readFileSync(path.join(backups(), "ledger-2027-01-05.json"), "utf8"))).toEqual([]);
+
+        vi.setSystemTime(new Date(2027, 0, 6, 9));
+        store.upsert({ name: "C", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+        expect(names(fs.readFileSync(path.join(backups(), "ledger-2027-01-06.json"), "utf8"))).toEqual(["A", "B"]);
+      });
+
+      it("keeps only the newest 14", () => {
+        fs.rmSync(backups(), { recursive: true, force: true }); // drop the one init() made for the real today
+        fs.mkdirSync(backups(), { recursive: true });
+        for (let d = 1; d <= 20; d++) {
+          fs.writeFileSync(path.join(backups(), `ledger-2026-01-${String(d).padStart(2, "0")}.json`), "{}", "utf8");
+        }
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date(2027, 0, 5, 9));
+        store.upsert({ name: "A", amount: 1, cycle: "monthly", day: 1, category: "기타" });
+        expect(daily()).toHaveLength(14);
+        expect(daily().at(-1)).toBe("ledger-2027-01-05.json");
+        expect(daily()[0]).toBe("ledger-2026-01-08.json");
+      });
     });
 
     it("import recovers a blocked store without backing up the broken file", () => {

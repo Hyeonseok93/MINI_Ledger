@@ -21,6 +21,10 @@ import {
 let storeDir = "";
 let filePath = "";
 let backupPath = "";
+let backupDir = "";
+/** Daily copies kept in backups/ (one per day the ledger was opened or changed). */
+const DAILY_KEEP = 14;
+const DAILY_FILE = /^ledger-\d{4}-\d{2}-\d{2}\.json$/;
 /** Set when ledger.json can't be parsed; blocks every write so the bad file is never overwritten. */
 let loadError: Error | null = null;
 
@@ -75,13 +79,31 @@ function read(): MutableLedger {
   }
 }
 
-/** `backup` copies the current (last good) file to ledger.json.bak before replacing it. */
+function localDate(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** First save of each day keeps the file as it stood (backups/ledger-YYYY-MM-DD.json), newest DAILY_KEEP retained. */
+function dailyBackup() {
+  const target = path.join(backupDir, `ledger-${localDate(new Date())}.json`);
+  if (fs.existsSync(target)) return;
+  fs.mkdirSync(backupDir, { recursive: true });
+  writeAtomic(target, fs.readFileSync(filePath, "utf8"));
+  const stale = fs.readdirSync(backupDir).filter((f) => DAILY_FILE.test(f)).sort().slice(0, -DAILY_KEEP);
+  for (const f of stale) fs.rmSync(path.join(backupDir, f), { force: true });
+}
+
+/** `backup` copies the current (last good) file to ledger.json.bak and the daily backup before replacing it. */
 function write(data: MutableLedger, backup = true) {
   if (loadError) throw loadError;
   ensure();
   data.version = Math.max(3, Number(data.version) || 3);
   data.assignments = normalizeAssignments(data.assignments);
-  if (backup) fs.copyFileSync(filePath, backupPath);
+  if (backup) {
+    fs.copyFileSync(filePath, backupPath);
+    dailyBackup();
+  }
   writeAtomic(filePath, JSON.stringify(data, null, 2));
 }
 
@@ -102,6 +124,7 @@ export function init(userData: string) {
   storeDir = path.join(userData, "store");
   filePath = path.join(storeDir, "ledger.json");
   backupPath = `${filePath}.bak`;
+  backupDir = path.join(storeDir, "backups");
   loadError = null;
   fs.mkdirSync(storeDir, { recursive: true });
   fs.rmSync(`${filePath}.tmp`, { force: true }); // leftover from an interrupted write
@@ -118,6 +141,10 @@ export function init(userData: string) {
 
 export function getStoreDir() {
   return storeDir;
+}
+
+export function getBackupDir() {
+  return backupDir;
 }
 
 export function getAll(): FixedItem[] {

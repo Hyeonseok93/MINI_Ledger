@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("ledger", {
   getPaths: () => ipcRenderer.invoke("app:getPaths"),
   exportJson: () => ipcRenderer.invoke("data:export"),
   importJson: () => ipcRenderer.invoke("data:import"),
+  confirm: (opts: unknown) => ipcRenderer.invoke("dialog:confirm", opts),
 });
 
 contextBridge.exposeInMainWorld("windowControls", {

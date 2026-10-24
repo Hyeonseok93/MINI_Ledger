@@ -173,5 +173,6 @@ export function installDevMock() {
       income = data.income;
       return { ok: true };
     },
+    confirm: async ({ message, detail }) => window.confirm(detail ? `${message}\n${detail}` : message),
   };
 }
